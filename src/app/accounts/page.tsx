@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 
@@ -29,84 +29,137 @@ export default function AccountsPage() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [newUsername, setNewUsername] = useState("");
+  const [patToken, setPatToken] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  // Live state variables linked to DB
+  const [accounts, setAccounts] = useState<GitHubAccount[]>([]);
+  const [repos, setRepos] = useState<Repository[]>([]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
 
-  // State data untuk akun GitHub
-  const [accounts, setAccounts] = useState<GitHubAccount[]>([
-    {
-      username: "yudiasmoro-star",
-      avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&h=100&q=80",
-      reposCount: 3,
-      status: "Active",
-      connectedAt: "10 Juni 2026",
-    },
-    {
-      username: "BeyeDev",
-      avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&h=100&q=80",
-      reposCount: 4,
-      status: "Active",
-      connectedAt: "12 Juni 2026",
-    },
-  ]);
-
-  // State data untuk repositori terpantau
-  const [repos, setRepos] = useState<Repository[]>([
-    { name: "v3dsc17-ownhost", owner: "yudiasmoro-star", language: "TypeScript", commitsCount: 24, isVisible: true, lastSynced: "2 jam yang lalu" },
-    { name: "V2-DSC17-DASH", owner: "yudiasmoro-star", language: "TypeScript", commitsCount: 14, isVisible: true, lastSynced: "4 jam yang lalu" },
-    { name: "dsc17-dash", owner: "yudiasmoro-star", language: "None", commitsCount: 0, isVisible: false, lastSynced: "Belum disinkronkan" },
-    { name: "MyMaiyah-TWS", owner: "BeyeDev", language: "TypeScript", commitsCount: 18, isVisible: true, lastSynced: "1 jam yang lalu" },
-    { name: "OWNV4-DSC17-2026", owner: "BeyeDev", language: "TypeScript", commitsCount: 14, isVisible: true, lastSynced: "6 jam yang lalu" },
-    { name: "maiyah-news-front", owner: "BeyeDev", language: "TypeScript", commitsCount: 2, isVisible: false, lastSynced: "12 hari yang lalu" },
-    { name: "web-mili-dev", owner: "BeyeDev", language: "TypeScript", commitsCount: 15, isVisible: true, lastSynced: "30 menit yang lalu" },
-  ]);
-
-  // Toggle visibilitas repo
-  const handleToggleVisibility = (index: number) => {
-    setRepos((prev) =>
-      prev.map((r, idx) => (idx === index ? { ...r, isVisible: !r.isVisible } : r))
-    );
+  // Load connected accounts and repos from Supabase via API
+  const fetchUserData = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/accounts");
+      const data = await res.json();
+      if (data.success) {
+        setAccounts(data.accounts || []);
+        setRepos(data.repos || []);
+      }
+    } catch (err) {
+      console.error("Gagal memuat data akun dari Supabase:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Simulasi sinkronisasi per repo
-  const handleSyncRepo = (index: number) => {
+  useEffect(() => {
+    if (session?.user) {
+      fetchUserData();
+    }
+  }, [session]);
+
+  // Toggle visibility status in Supabase
+  const handleToggleVisibility = async (index: number) => {
+    const repo = repos[index];
+    const newVisibility = !repo.isVisible;
+
+    // Optimistic UI Update
+    setRepos((prev) =>
+      prev.map((r, idx) => (idx === index ? { ...r, isVisible: newVisibility } : r))
+    );
+
+    try {
+      const res = await fetch("/api/repos/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repo_id: (repo as any).repo_id, is_visible: newVisibility })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        // Rollback state
+        setRepos((prev) =>
+          prev.map((r, idx) => (idx === index ? { ...r, isVisible: repo.isVisible } : r))
+        );
+        alert("Gagal merubah visibilitas: " + data.error);
+      }
+    } catch (err) {
+      console.error(err);
+      setRepos((prev) =>
+        prev.map((r, idx) => (idx === index ? { ...r, isVisible: repo.isVisible } : r))
+      );
+    }
+  };
+
+  // Trigger sync API (pulls real commits and PRs from GitHub and saves in Supabase)
+  const handleSyncRepo = async (index: number) => {
+    const repo = repos[index];
+    
+    // Set loading spinner state
     setRepos((prev) =>
       prev.map((r, idx) => (idx === index ? { ...r, isSyncing: true } : r))
     );
 
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/repos/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repo_id: (repo as any).repo_id })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Sinkronisasi '${repo.owner}/${repo.name}' berhasil! Terunduh ${data.commitsCount} commits baru ke Supabase.`);
+        await fetchUserData(); // Refresh stats from DB
+      } else {
+        alert("Gagal sinkronisasi: " + data.error);
+        setRepos((prev) =>
+          prev.map((r, idx) => (idx === index ? { ...r, isSyncing: false } : r))
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Gagal menghubungi server sync.");
       setRepos((prev) =>
-        prev.map((r, idx) =>
-          idx === index ? { ...r, isSyncing: false, lastSynced: "Baru saja", commitsCount: r.commitsCount + 1 } : r
-        )
+        prev.map((r, idx) => (idx === index ? { ...r, isSyncing: false } : r))
       );
-    }, 2000);
+    }
   };
 
-  // Hubungkan akun baru
-  const handleConnectAccount = (e: React.FormEvent) => {
+  // Save new connected account to Supabase
+  const handleConnectAccount = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUsername.trim()) return;
+    if (!newUsername.trim() || !patToken.trim()) return;
 
     setIsConnecting(true);
-    setTimeout(() => {
-      const newAcc: GitHubAccount = {
-        username: newUsername,
-        avatarUrl: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&h=100&q=80",
-        reposCount: 0,
-        status: "Active",
-        connectedAt: "Hari ini",
-      };
-      setAccounts((prev) => [...prev, newAcc]);
+    try {
+      const res = await fetch("/api/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: newUsername, token: patToken })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        setShowModal(false);
+        setNewUsername("");
+        setPatToken("");
+        await fetchUserData(); // Reload list
+      } else {
+        alert("Gagal menghubungkan: " + data.error);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Gagal menghubungkan ke server.");
+    } finally {
       setIsConnecting(false);
-      setShowModal(false);
-      setNewUsername("");
-    }, 1500);
+    }
   };
 
-  // Filter repo berdasarkan pencarian
+  // Filter repos based on search query
   const filteredRepos = repos.filter(
     (r) =>
       r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -205,23 +258,33 @@ export default function AccountsPage() {
               <h2 className="text-lg font-bold font-mono mb-4 border-b border-[var(--color-border)] pb-2">Akun Terhubung</h2>
               
               <div className="flex flex-col gap-4">
-                {accounts.map((acc, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)]">
-                    <div className="flex items-center gap-3">
-                      <img src={acc.avatarUrl} alt={acc.username} className="w-12 h-12 rounded-xl object-cover border border-[var(--color-border)]" />
-                      <div>
-                        <span className="font-mono font-bold text-sm block">{acc.username}</span>
-                        <span className="text-xs text-[var(--color-text-secondary)]">Terhubung: {acc.connectedAt}</span>
+                {loading ? (
+                  <div className="text-center py-6 text-[var(--color-text-secondary)] font-mono text-xs animate-pulse">
+                    Memuat daftar akun...
+                  </div>
+                ) : accounts.length > 0 ? (
+                  accounts.map((acc, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)]">
+                      <div className="flex items-center gap-3">
+                        <img src={acc.avatarUrl} alt={acc.username} className="w-12 h-12 rounded-xl object-cover border border-[var(--color-border)]" />
+                        <div>
+                          <span className="font-mono font-bold text-sm block">{acc.username}</span>
+                          <span className="text-xs text-[var(--color-text-secondary)]">Terhubung: {acc.connectedAt}</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full ${acc.status === "Active" ? "bg-emerald-500/10 text-[var(--color-accent-success)] border border-emerald-500/20" : "bg-red-500/10 text-red-500 border border-red-500/20"}`}>
+                          {acc.status}
+                        </span>
+                        <span className="text-xs text-[var(--color-text-secondary)] font-mono">{acc.reposCount} Repos</span>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full ${acc.status === "Active" ? "bg-emerald-500/10 text-[var(--color-accent-success)] border border-emerald-500/20" : "bg-red-500/10 text-red-500 border border-red-500/20"}`}>
-                        {acc.status}
-                      </span>
-                      <span className="text-xs text-[var(--color-text-secondary)] font-mono">{acc.reposCount} Repos</span>
-                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-6 text-[var(--color-text-secondary)] font-mono text-xs">
+                    Belum ada akun GitHub terhubung.
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
@@ -258,7 +321,11 @@ export default function AccountsPage() {
 
                 {/* Repos List */}
                 <div className="flex flex-col gap-3 max-h-[450px] overflow-y-auto pr-2">
-                  {filteredRepos.length > 0 ? (
+                  {loading ? (
+                    <div className="text-center py-12 text-[var(--color-text-secondary)] font-mono text-sm animate-pulse">
+                      Memuat daftar repositori...
+                    </div>
+                  ) : filteredRepos.length > 0 ? (
                     filteredRepos.map((repo, idx) => {
                       const absoluteIdx = repos.findIndex((r) => r.name === repo.name && r.owner === repo.owner);
                       return (
@@ -360,6 +427,8 @@ export default function AccountsPage() {
                   type="password"
                   required
                   placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                  value={patToken}
+                  onChange={(e) => setPatToken(e.target.value)}
                   className="w-full px-4 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] focus:outline-none focus:border-[var(--color-accent-success)] transition-colors text-sm"
                 />
                 <span className="text-[10px] text-[var(--color-text-secondary)] leading-relaxed">
