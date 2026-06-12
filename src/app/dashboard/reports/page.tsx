@@ -19,10 +19,28 @@ interface PRItem {
   state: "merged" | "open" | "closed";
 }
 
+function StarRating({ count }: { count: number }) {
+  return (
+    <div className="flex gap-0.5" aria-label={`${count} stars`}>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <svg
+          key={i}
+          className={`w-3.5 h-3.5 ${i < count ? "text-amber-500 fill-amber-500" : "text-gray-300 dark:text-gray-700"}`}
+          viewBox="0 0 20 20"
+          fill="currentColor"
+        >
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+      ))}
+    </div>
+  );
+}
+
 export default function ReportsPage() {
   const { data: session } = useSession();
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [reportType, setReportType] = useState<"daily" | "weekly" | "monthly">("daily");
+  const isManager = session?.user && (session.user as any).role === "Manajemen";
 
   // Set theme otomatis berdasarkan role pengguna
   useEffect(() => {
@@ -167,67 +185,405 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* Bento Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left: Interactive Preview & Manual Input */}
-          <div className="lg:col-span-2 flex flex-col gap-6">
-            
-            {/* Manual Context Input (Hanya untuk Developer) */}
-            {(!session || (session.user as any).role === "Developer") && (
-            <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
-              <h2 className="text-base font-mono font-bold uppercase tracking-wider mb-4 border-b border-[var(--color-border)] pb-2 flex items-center gap-2">
-                <svg className="w-5 h-5 text-[var(--color-accent-info)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-                Catatan Konteks Kerja Manual (Developer Input)
-              </h2>
-
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs font-mono font-semibold text-[var(--color-text-secondary)]">
-                    Konteks Aktivitas Non-GitHub (Meeting, Riset, Debugging Lokal, dll.)
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={manualNotes}
-                    onChange={(e) => setManualNotes(e.target.value)}
-                    className="w-full px-4 py-3 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] focus:outline-none focus:border-[var(--color-accent-success)] transition-colors font-mono"
-                    placeholder="Masukkan poin-poin pekerjaan Anda hari ini..."
-                  />
+        {isManager ? (
+          /* Management Dashboard Layout (Bento Grid) */
+          <div className="flex flex-col gap-6">
+            {/* Bento Header Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Sprint Progress Card */}
+              <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6 flex flex-col justify-between gap-4">
+                <div>
+                  <span className="text-xs font-mono font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">Siklus Sprint Aktif</span>
+                  <h3 className="text-2xl font-bold mt-1 text-[var(--color-text-primary)]">Sprint 12 (Q2)</h3>
                 </div>
-
                 <div className="flex flex-col gap-2">
-                  <label className="text-xs font-mono font-semibold text-[var(--color-text-secondary)]">
-                    Kendala / Blocker Kerja
-                  </label>
-                  <input
-                    type="text"
-                    value={blockers}
-                    onChange={(e) => setBlockers(e.target.value)}
-                    className="w-full px-4 py-3 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] focus:outline-none focus:border-[var(--color-accent-success)] transition-colors font-mono"
-                    placeholder="Masukkan blocker jika ada..."
-                  />
+                  <div className="flex justify-between text-xs font-mono">
+                    <span className="text-[var(--color-text-secondary)]">Kemajuan Tugas</span>
+                    <span className="font-bold text-[var(--color-accent-success)]">75% Selesai</span>
+                  </div>
+                  <div className="w-full bg-[var(--color-bg)] rounded-full h-2 overflow-hidden border border-[var(--color-border)]">
+                    <div className="bg-gradient-to-r from-emerald-400 to-teal-500 h-2 rounded-full transition-all duration-500" style={{ width: "75%" }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Completed Tasks Card */}
+              <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6 flex flex-col justify-between gap-2">
+                <div>
+                  <span className="text-xs font-mono font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">Pekerjaan Terselesaikan</span>
+                  <h3 className="text-3xl font-extrabold mt-2 text-[var(--color-accent-info)]">14</h3>
+                </div>
+                <div className="text-xs text-[var(--color-text-secondary)] font-mono leading-relaxed mt-2">
+                  • 11 Fitur Utama & Dokumentasi<br />
+                  • 3 Perbaikan Bug Kritis
+                </div>
+              </div>
+
+              {/* Active Bugs Card */}
+              <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6 flex flex-col justify-between gap-2">
+                <div>
+                  <span className="text-xs font-mono font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">Kendala / Bug Aktif</span>
+                  <h3 className="text-3xl font-extrabold mt-2 text-red-500">2</h3>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                  <span className="text-xs text-red-500 font-mono">Resiko Rendah (Tidak Memblokir Rilis)</span>
                 </div>
               </div>
             </div>
-            )}
 
-            {/* Generated Report Preview Card */}
-            <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
-              <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-4 mb-6">
-                <div>
-                  <span className="text-xs font-mono font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">Preview Output Laporan</span>
-                  <h2 className="text-lg font-bold mt-1">{getReportTitle()}</h2>
+            {/* Main Bento Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left Column (2/3 width) */}
+              <div className="lg:col-span-2 flex flex-col gap-6">
+                {/* Epics Gallery */}
+                <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
+                  <h2 className="text-base font-mono font-bold uppercase tracking-wider mb-4 border-b border-[var(--color-border)] pb-2 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-[var(--color-accent-info)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    Epics & Inisiatif Utama (High-Level Progress)
+                  </h2>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                    {/* Epic Card 1 */}
+                    <div className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] flex flex-col justify-between gap-4 hover:border-[var(--color-accent-info)]/30 transition-all cursor-pointer">
+                      <div>
+                        <div className="flex justify-between items-start gap-2">
+                          <h4 className="text-sm font-bold leading-tight">Form Registrasi Multi-Step</h4>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">In Progress</span>
+                        </div>
+                        <p className="text-[11px] text-[var(--color-text-secondary)] mt-1 leading-relaxed">Formulir pendaftaran bertahap dengan kompresi gambar otomatis.</p>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex justify-between items-center text-[10px] font-mono">
+                          <StarRating count={4} />
+                          <span className="font-bold text-[var(--color-text-secondary)]">80% Selesai</span>
+                        </div>
+                        <div className="w-full bg-[var(--color-card)] rounded-full h-1.5 overflow-hidden">
+                          <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: "80%" }} />
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px] text-[var(--color-text-secondary)] font-mono mt-1">
+                          <span>Owner:</span>
+                          <span className="font-bold text-[var(--color-text-primary)]">BeyeDev</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Epic Card 2 */}
+                    <div className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] flex flex-col justify-between gap-4 hover:border-[var(--color-accent-info)]/30 transition-all cursor-pointer">
+                      <div>
+                        <div className="flex justify-between items-start gap-2">
+                          <h4 className="text-sm font-bold leading-tight">PWA Auto-Update Banner</h4>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">Completed</span>
+                        </div>
+                        <p className="text-[11px] text-[var(--color-text-secondary)] mt-1 leading-relaxed">Sistem deteksi pembaruan otomatis untuk pengguna PWA.</p>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex justify-between items-center text-[10px] font-mono">
+                          <StarRating count={2} />
+                          <span className="font-bold text-[var(--color-text-secondary)]">100% Selesai</span>
+                        </div>
+                        <div className="w-full bg-[var(--color-card)] rounded-full h-1.5 overflow-hidden">
+                          <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: "100%" }} />
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px] text-[var(--color-text-secondary)] font-mono mt-1">
+                          <span>Owner:</span>
+                          <span className="font-bold text-[var(--color-text-primary)]">BeyeDev</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Epic Card 3 */}
+                    <div className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] flex flex-col justify-between gap-4 hover:border-[var(--color-accent-info)]/30 transition-all cursor-pointer">
+                      <div>
+                        <div className="flex justify-between items-start gap-2">
+                          <h4 className="text-sm font-bold leading-tight">Migrasi Database & Supabase</h4>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">In Progress</span>
+                        </div>
+                        <p className="text-[11px] text-[var(--color-text-secondary)] mt-1 leading-relaxed">Migrasi skema database utama ke infrastruktur cloud Supabase.</p>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex justify-between items-center text-[10px] font-mono">
+                          <StarRating count={5} />
+                          <span className="font-bold text-[var(--color-text-secondary)]">50% Selesai</span>
+                        </div>
+                        <div className="w-full bg-[var(--color-card)] rounded-full h-1.5 overflow-hidden">
+                          <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: "50%" }} />
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px] text-[var(--color-text-secondary)] font-mono mt-1">
+                          <span>Owner:</span>
+                          <span className="font-bold text-[var(--color-text-primary)]">BeyeDev</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-xs font-mono text-[var(--color-text-secondary)] block">Periode Pelaporan</span>
-                  <span className="text-sm font-mono font-semibold text-[var(--color-accent-success)]">{getReportPeriod()}</span>
+
+                {/* Simplified Active Issues */}
+                <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
+                  <h2 className="text-base font-mono font-bold uppercase tracking-wider mb-4 border-b border-[var(--color-border)] pb-2 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-[var(--color-accent-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                    Daftar Tugas Aktif (Simplified Tasks Log)
+                  </h2>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs font-mono">
+                      <thead>
+                        <tr className="border-b border-[var(--color-border)] text-[var(--color-text-secondary)]">
+                          <th className="pb-3 font-semibold">Nama Tugas</th>
+                          <th className="pb-3 font-semibold text-center">Tipe</th>
+                          <th className="pb-3 font-semibold text-center">Tingkat Kesulitan</th>
+                          <th className="pb-3 font-semibold text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--color-border)]">
+                        <tr className="hover:bg-[var(--color-border)]/20 transition-colors">
+                          <td className="py-3 font-sans font-semibold text-[var(--color-text-primary)]">Migrasi Database & Skema Migrasi Supabase</td>
+                          <td className="py-3 text-center">
+                            <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 text-[10px]">Task</span>
+                          </td>
+                          <td className="py-3 flex justify-center"><StarRating count={5} /></td>
+                          <td className="py-3 text-right">
+                            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 font-bold text-[10px]">In Progress</span>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-[var(--color-border)]/20 transition-colors">
+                          <td className="py-3 font-sans font-semibold text-[var(--color-text-primary)]">Optimasi Cache Timeline State Lokal</td>
+                          <td className="py-3 text-center">
+                            <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 text-[10px]">Task</span>
+                          </td>
+                          <td className="py-3 flex justify-center"><StarRating count={3} /></td>
+                          <td className="py-3 text-right">
+                            <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-bold text-[10px]">Completed</span>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-[var(--color-border)]/20 transition-colors">
+                          <td className="py-3 font-sans font-semibold text-[var(--color-text-primary)]">Fix Bug Memory Leak di Staging Upload</td>
+                          <td className="py-3 text-center">
+                            <span className="px-2 py-0.5 rounded bg-red-500/10 text-red-500 border border-red-500/20 text-[10px]">Bug</span>
+                          </td>
+                          <td className="py-3 flex justify-center"><StarRating count={4} /></td>
+                          <td className="py-3 text-right">
+                            <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-bold text-[10px]">Resolved</span>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-[var(--color-border)]/20 transition-colors">
+                          <td className="py-3 font-sans font-semibold text-[var(--color-text-primary)]">Riset Implementasi Enkripsi AES-256 Supabase</td>
+                          <td className="py-3 text-center">
+                            <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 text-[10px]">Task</span>
+                          </td>
+                          <td className="py-3 flex justify-center"><StarRating count={3} /></td>
+                          <td className="py-3 text-right">
+                            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 font-bold text-[10px]">In Progress</span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
 
-              {/* Dual theme logic display */}
-              {!session || (session.user as any).role === "Developer" ? (
-                /* Developer View (Detailed & Code-focused) */
+              {/* Right Column (1/3 width) */}
+              <div className="lg:col-span-1 flex flex-col gap-6">
+                {/* Milestone Timeline */}
+                <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
+                  <h2 className="text-base font-mono font-bold uppercase tracking-wider mb-4 border-b border-[var(--color-border)] pb-2 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-[var(--color-accent-warning)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Milestone Timeline
+                  </h2>
+
+                  <div className="flex flex-col gap-4 mt-2 font-mono text-xs">
+                    {/* Milestone 1 */}
+                    <div className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <span className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center text-[8px] text-white font-bold">✓</span>
+                        <div className="w-0.5 h-12 bg-emerald-500" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-[var(--color-text-primary)]">Integrasi Supabase & Schema SQL</div>
+                        <div className="text-[10px] text-[var(--color-text-secondary)] mt-0.5">10 Juni 2026</div>
+                        <div className="text-[10px] text-[var(--color-accent-success)] font-semibold mt-1">Selesai (Di-deploy ke staging)</div>
+                      </div>
+                    </div>
+
+                    {/* Milestone 2 */}
+                    <div className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <span className="w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center text-[8px] text-white font-bold">⌛</span>
+                        <div className="w-0.5 h-12 bg-[var(--color-border)]" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-[var(--color-text-primary)]">Staging Internal & Review Form</div>
+                        <div className="text-[10px] text-[var(--color-text-secondary)] mt-0.5">15 Juni 2026</div>
+                        <div className="text-[10px] text-amber-500 font-semibold mt-1">Sedang Berjalan (Testing manual)</div>
+                      </div>
+                    </div>
+
+                    {/* Milestone 3 */}
+                    <div className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <span className="w-4 h-4 rounded-full bg-[var(--color-border)] border border-[var(--color-border)] flex items-center justify-center text-[8px]" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-[var(--color-text-secondary)]">Production Deployment</div>
+                        <div className="text-[10px] text-[var(--color-text-secondary)] mt-0.5">22 Juni 2026</div>
+                        <div className="text-[10px] text-[var(--color-text-secondary)] mt-1">Belum Dimulai</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Export Card */}
+                <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
+                  <h2 className="text-base font-mono font-bold uppercase tracking-wider mb-4 border-b border-[var(--color-border)] pb-2 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-[var(--color-accent-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Ekspor & Bagikan Laporan
+                  </h2>
+
+                  <p className="text-xs text-[var(--color-text-secondary)] mb-6 leading-relaxed">
+                    Hasilkan laporan pekerjaan resmi untuk dikirimkan kepada pemangku kepentingan dalam format pilihan Anda.
+                  </p>
+
+                  <div className="flex flex-col gap-3">
+                    <button
+                      onClick={() => handleExport("pdf")}
+                      disabled={isExporting !== "none"}
+                      className="w-full py-3 px-4 font-mono font-semibold rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-border)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-wait"
+                    >
+                      {isExporting === "pdf" ? (
+                        <>
+                          <svg className="w-5 h-5 animate-spin text-[var(--color-accent-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15.89M21 21v-5h-.581" />
+                          </svg>
+                          Mengekspor PDF...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          </svg>
+                          Ekspor Laporan PDF
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => handleExport("excel")}
+                      disabled={isExporting !== "none"}
+                      className="w-full py-3 px-4 font-mono font-semibold rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-border)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-wait"
+                    >
+                      {isExporting === "excel" ? (
+                        <>
+                          <svg className="w-5 h-5 animate-spin text-[var(--color-accent-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15.89M21 21v-5h-.581" />
+                          </svg>
+                          Mengekspor Excel...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H3a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Ekspor Excel (.xlsx)
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => handleExport("share")}
+                      disabled={isExporting !== "none"}
+                      className="w-full py-3 px-4 font-mono font-semibold rounded-xl bg-[var(--color-accent-success)] text-white hover:opacity-90 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {isExporting === "share" ? (
+                        "Menyalin Link..."
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 10.742l4.028-2.014m0 4.544l-4.028-2.014m5.673-3.137A3 3 0 1119 7.843 3 3 0 0114.332 7.843zM7 10a3 3 0 11-6 0 3 3 0 016 0zm11 8a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          Bagikan Link Laporan
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Access Security Card */}
+                <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
+                  <h3 className="text-sm font-mono font-bold uppercase tracking-wider text-[var(--color-accent-warning)] mb-2">🔒 Keamanan Akses</h3>
+                  <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
+                    Setiap akses manajemen ke dashboard ini dipantau secara ketat dan dicatat di dalam <strong>Audit Log</strong> demi integritas data.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Developer Dashboard Layout (Original) */
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left: Interactive Preview & Manual Input */}
+            <div className="lg:col-span-2 flex flex-col gap-6">
+              
+              {/* Manual Context Input (Hanya untuk Developer) */}
+              {(!session || (session.user as any).role === "Developer") && (
+              <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
+                <h2 className="text-base font-mono font-bold uppercase tracking-wider mb-4 border-b border-[var(--color-border)] pb-2 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-[var(--color-accent-info)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Catatan Konteks Kerja Manual (Developer Input)
+                </h2>
+
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-mono font-semibold text-[var(--color-text-secondary)]">
+                      Konteks Aktivitas Non-GitHub (Meeting, Riset, Debugging Lokal, dll.)
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={manualNotes}
+                      onChange={(e) => setManualNotes(e.target.value)}
+                      className="w-full px-4 py-3 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] focus:outline-none focus:border-[var(--color-accent-success)] transition-colors font-mono"
+                      placeholder="Masukkan poin-poin pekerjaan Anda hari ini..."
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-mono font-semibold text-[var(--color-text-secondary)]">
+                      Kendala / Blocker Kerja
+                    </label>
+                    <input
+                      type="text"
+                      value={blockers}
+                      onChange={(e) => setBlockers(e.target.value)}
+                      className="w-full px-4 py-3 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] focus:outline-none focus:border-[var(--color-accent-success)] transition-colors font-mono"
+                      placeholder="Masukkan blocker jika ada..."
+                    />
+                  </div>
+                </div>
+              </div>
+              )}
+
+              {/* Generated Report Preview Card */}
+              <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
+                <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-4 mb-6">
+                  <div>
+                    <span className="text-xs font-mono font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">Preview Output Laporan</span>
+                    <h2 className="text-lg font-bold mt-1">{getReportTitle()}</h2>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-mono text-[var(--color-text-secondary)] block">Periode Pelaporan</span>
+                    <span className="text-sm font-mono font-semibold text-[var(--color-accent-success)]">{getReportPeriod()}</span>
+                  </div>
+                </div>
+
                 <div className="flex flex-col gap-6">
                   {/* Commits List */}
                   <div>
@@ -273,156 +629,119 @@ export default function ReportsPage() {
                     </div>
                   </div>
                 </div>
-              ) : (
-                /* Management View (Summary & High-level features) */
-                <div className="flex flex-col gap-6">
-                  {/* High level features finished */}
-                  <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--color-accent-info)] mb-3 flex items-center gap-1.5">
-                      <span className="w-1.5 h-3 rounded bg-[var(--color-accent-info)]"></span>
-                      Fitur / Pekerjaan Terselesaikan
-                    </h3>
-                    <ul className="list-disc pl-5 flex flex-col gap-2.5 text-sm leading-relaxed">
-                      <li>
-                        <strong>Form Registrasi Multi-Step</strong>: Berhasil mengimplementasikan formulir pendaftaran bertahap lengkap dengan kompresi gambar di sisi client untuk mempercepat proses upload data submission.
-                      </li>
-                      <li>
-                        <strong>banner Update PWA</strong>: Mengintegrasikan sistem deteksi pembaruan aplikasi otomatis untuk memastikan pengguna selalu mendapatkan versi web app terbaru.
-                      </li>
-                      <li>
-                        <strong>Perapian README Dokumentasi</strong>: Memperbarui panduan dokumentasi proyek dan instruksi staging deployment.
-                      </li>
-                    </ul>
-                  </div>
 
-                  {/* Summary Metric Badges */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)]">
-                      <span className="text-xs text-[var(--color-text-secondary)] block">Skala Kontribusi GitHub</span>
-                      <div className="text-lg font-bold mt-1 text-[var(--color-accent-info)]">3 Kompilasi Pekerjaan Utama</div>
-                    </div>
-                    <div className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)]">
-                      <span className="text-xs text-[var(--color-text-secondary)] block">Total Perubahan Baris Kode</span>
-                      <div className="text-lg font-bold mt-1 text-[var(--color-accent-success)]">221 Penambahan / 17 Pengurangan</div>
-                    </div>
+                {/* Displaying Manual Notes in the report */}
+                <div className="mt-6 pt-6 border-t border-[var(--color-border)]">
+                  <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-[var(--color-accent-warning)] mb-3 flex items-center gap-1.5">
+                    <span className="w-1.5 h-3 rounded bg-[var(--color-accent-warning)]"></span>
+                    Catatan Manual Developer
+                  </h3>
+                  <div className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-xs font-mono leading-relaxed whitespace-pre-line">
+                    {manualNotes || "Belum ada catatan manual ditambahkan."}
                   </div>
                 </div>
-              )}
 
-              {/* Displaying Manual Notes in the report */}
-              <div className="mt-6 pt-6 border-t border-[var(--color-border)]">
-                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-[var(--color-accent-warning)] mb-3 flex items-center gap-1.5">
-                  <span className="w-1.5 h-3 rounded bg-[var(--color-accent-warning)]"></span>
-                  Catatan Manual Developer
-                </h3>
-                <div className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-xs font-mono leading-relaxed whitespace-pre-line">
-                  {manualNotes || "Belum ada catatan manual ditambahkan."}
+                {/* Displaying Blockers */}
+                <div className="mt-4">
+                  <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-red-500 mb-2 flex items-center gap-1.5">
+                    <span className="w-1.5 h-3 rounded bg-red-500"></span>
+                    Kendala & Blockers
+                  </h3>
+                  <div className="p-3 rounded-xl border border-red-500/15 bg-[var(--color-bg)] text-xs font-mono text-red-400">
+                    {blockers || "Tidak ada kendala."}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Export Panel */}
+            <div className="lg:col-span-1 flex flex-col gap-6">
+              <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
+                <h2 className="text-base font-mono font-bold uppercase tracking-wider mb-4 border-b border-[var(--color-border)] pb-2 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-[var(--color-accent-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Ekspor & Bagikan Laporan
+                </h2>
+
+                <p className="text-xs text-[var(--color-text-secondary)] mb-6 leading-relaxed">
+                  Hasilkan laporan pekerjaan resmi untuk dikirimkan kepada atasan atau divisi manajemen dalam format pilihan Anda.
+                </p>
+
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={() => handleExport("pdf")}
+                    disabled={isExporting !== "none"}
+                    className="w-full py-3 px-4 font-mono font-semibold rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-border)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-wait"
+                  >
+                    {isExporting === "pdf" ? (
+                      <>
+                        <svg className="w-5 h-5 animate-spin text-[var(--color-accent-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15.89M21 21v-5h-.581" />
+                        </svg>
+                        Mengekspor PDF...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        Ekspor Laporan PDF
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => handleExport("excel")}
+                    disabled={isExporting !== "none"}
+                    className="w-full py-3 px-4 font-mono font-semibold rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-border)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-wait"
+                  >
+                    {isExporting === "excel" ? (
+                      <>
+                        <svg className="w-5 h-5 animate-spin text-[var(--color-accent-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15.89M21 21v-5h-.581" />
+                        </svg>
+                        Mengekspor Excel...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H3a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Ekspor Excel (.xlsx)
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => handleExport("share")}
+                    disabled={isExporting !== "none"}
+                    className="w-full py-3 px-4 font-mono font-semibold rounded-xl bg-[var(--color-accent-success)] text-white hover:opacity-90 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isExporting === "share" ? (
+                      "Menyalin Link..."
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 10.742l4.028-2.014m0 4.544l-4.028-2.014m5.673-3.137A3 3 0 1119 7.843 3 3 0 0114.332 7.843zM7 10a3 3 0 11-6 0 3 3 0 016 0zm11 8a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Bagikan Link Laporan
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
 
-              {/* Displaying Blockers */}
-              <div className="mt-4">
-                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-red-500 mb-2 flex items-center gap-1.5">
-                  <span className="w-1.5 h-3 rounded bg-red-500"></span>
-                  Kendala & Blockers
-                </h3>
-                <div className="p-3 rounded-xl border border-red-500/15 bg-[var(--color-bg)] text-xs font-mono text-red-400">
-                  {blockers || "Tidak ada kendala."}
-                </div>
+              {/* Audit Log Hint */}
+              <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
+                <h3 className="text-sm font-mono font-bold uppercase tracking-wider text-[var(--color-accent-warning)] mb-2">🔒 Keamanan Akses</h3>
+                <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
+                  Setiap kali perwakilan manajemen melihat atau mengekspor laporan Anda, sistem akan secara otomatis mencatatnya di panel <strong>Audit Log</strong> untuk transparansi penuh.
+                </p>
               </div>
             </div>
           </div>
-
-          {/* Right: Export Panel */}
-          <div className="lg:col-span-1 flex flex-col gap-6">
-            <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
-              <h2 className="text-base font-mono font-bold uppercase tracking-wider mb-4 border-b border-[var(--color-border)] pb-2 flex items-center gap-2">
-                <svg className="w-5 h-5 text-[var(--color-accent-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Ekspor & Bagikan Laporan
-              </h2>
-
-              <p className="text-xs text-[var(--color-text-secondary)] mb-6 leading-relaxed">
-                Hasilkan laporan pekerjaan resmi untuk dikirimkan kepada atasan atau divisi manajemen dalam format pilihan Anda.
-              </p>
-
-              <div className="flex flex-col gap-3">
-                {/* PDF Export */}
-                <button
-                  onClick={() => handleExport("pdf")}
-                  disabled={isExporting !== "none"}
-                  className="w-full py-3 px-4 font-mono font-semibold rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-border)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-wait"
-                >
-                  {isExporting === "pdf" ? (
-                    <>
-                      <svg className="w-5 h-5 animate-spin text-[var(--color-accent-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15.89M21 21v-5h-.581" />
-                      </svg>
-                      Mengekspor PDF...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                      </svg>
-                      Ekspor Laporan PDF
-                    </>
-                  )}
-                </button>
-
-                {/* Excel Export */}
-                <button
-                  onClick={() => handleExport("excel")}
-                  disabled={isExporting !== "none"}
-                  className="w-full py-3 px-4 font-mono font-semibold rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-border)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-wait"
-                >
-                  {isExporting === "excel" ? (
-                    <>
-                      <svg className="w-5 h-5 animate-spin text-[var(--color-accent-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15.89M21 21v-5h-.581" />
-                      </svg>
-                      Mengekspor Excel...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H3a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      Ekspor Excel (.xlsx)
-                    </>
-                  )}
-                </button>
-
-                {/* Share Link */}
-                <button
-                  onClick={() => handleExport("share")}
-                  disabled={isExporting !== "none"}
-                  className="w-full py-3 px-4 font-mono font-semibold rounded-xl bg-[var(--color-accent-success)] text-white hover:opacity-90 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                >
-                  {isExporting === "share" ? (
-                    "Menyalin Link..."
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 10.742l4.028-2.014m0 4.544l-4.028-2.014m5.673-3.137A3 3 0 1119 7.843 3 3 0 0114.332 7.843zM7 10a3 3 0 11-6 0 3 3 0 016 0zm11 8a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      Bagikan Link Laporan
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Audit Log Hint */}
-            <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
-              <h3 className="text-sm font-mono font-bold uppercase tracking-wider text-[var(--color-accent-warning)] mb-2">🔒 Keamanan Akses</h3>
-              <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
-                Setiap kali perwakilan manajemen melihat atau mengekspor laporan Anda, sistem akan secara otomatis mencatatnya di panel <strong>Audit Log</strong> untuk transparansi penuh.
-              </p>
-            </div>
-          </div>
-        </div>
+        )}
       </main>
 
       {/* Footer */}
