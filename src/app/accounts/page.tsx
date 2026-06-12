@@ -128,7 +128,10 @@ export default function AccountsPage() {
         </div>
 
         <nav className="hidden md:flex items-center gap-6 font-mono text-sm">
-          <Link href="/accounts" className="text-[var(--color-accent-success)] border-b border-[var(--color-accent-success)] pb-1 font-bold">Akun GitHub</Link>
+          {(!session || (session.user as any).role === "Developer") && (
+            <Link href="/accounts" className="text-[var(--color-accent-success)] border-b border-[var(--color-accent-success)] pb-1 font-bold">Akun GitHub</Link>
+          )}
+          <Link href="/dashboard/reports" className="hover:text-[var(--color-accent-success)] transition-colors">Laporan</Link>
           <Link href="/" className="hover:text-[var(--color-accent-success)] transition-colors">Halaman Utama</Link>
         </nav>
 

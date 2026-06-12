@@ -105,7 +105,9 @@ export default function ReportsPage() {
         </div>
 
         <nav className="hidden md:flex items-center gap-6 font-mono text-sm">
-          <Link href="/accounts" className="hover:text-[var(--color-accent-success)] transition-colors">Akun GitHub</Link>
+          {(!session || (session.user as any).role === "Developer") && (
+            <Link href="/accounts" className="hover:text-[var(--color-accent-success)] transition-colors">Akun GitHub</Link>
+          )}
           <Link href="/dashboard/reports" className="text-[var(--color-accent-success)] border-b border-[var(--color-accent-success)] pb-1 font-bold">Laporan</Link>
           <Link href="/" className="hover:text-[var(--color-accent-success)] transition-colors">Halaman Utama</Link>
         </nav>
