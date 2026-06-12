@@ -10,32 +10,36 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientSecret: process.env.GITHUB_CLIENT_SECRET,
     }),
     
-    // 2. Credentials Provider (Untuk login email demo/pengujian)
     Credentials({
       name: "Email & Passkey",
       credentials: {
-        email: { label: "Email", type: "email", placeholder: "dev@mili.id" },
+        email: { label: "Email", type: "email", placeholder: "nama@domain.com" },
         password: { label: "Passkey", type: "password" }
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
         
-        // Demo User (Developer)
-        if (credentials.email === "dev@mili.id" && credentials.password === "dev123") {
+        const devEmail = process.env.DEV_EMAIL || "dev@mili.id";
+        const devPassword = process.env.DEV_PASSWORD || "dev123";
+        const mgrEmail = process.env.MGR_EMAIL || "manager@mili.id";
+        const mgrPassword = process.env.MGR_PASSWORD || "manager123";
+        
+        // Developer Role
+        if (credentials.email === devEmail && credentials.password === devPassword) {
           return {
             id: "usr-dev-001",
-            name: "Yudi Asmoro",
-            email: "dev@mili.id",
+            name: "Mili Developer",
+            email: devEmail,
             role: "Developer"
           };
         }
         
-        // Demo User (Manajemen)
-        if (credentials.email === "manager@mili.id" && credentials.password === "manager123") {
+        // Manajemen Role
+        if (credentials.email === mgrEmail && credentials.password === mgrPassword) {
           return {
             id: "usr-mgr-001",
-            name: "Mili Manager",
-            email: "manager@mili.id",
+            name: "Mili Manajemen",
+            email: mgrEmail,
             role: "Manajemen"
           };
         }

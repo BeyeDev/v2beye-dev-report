@@ -24,37 +24,12 @@ export default function Home() {
       });
 
       if (res?.error) {
-        setError("Email atau Passkey salah. Gunakan kredensial demo di bawah.");
+        setError("Email atau Passkey salah.");
       } else {
         router.push("/dashboard/reports");
       }
     } catch (err) {
       setError("Terjadi kesalahan sistem saat masuk.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDemoLogin = async (demoEmail: string, demoPass: string) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    setError("");
-    setIsLoading(true);
-
-    try {
-      const res = await signIn("credentials", {
-        email: demoEmail,
-        password: demoPass,
-        redirect: false,
-      });
-
-      if (res?.error) {
-        setError("Gagal masuk menggunakan akun demo.");
-      } else {
-        router.push("/dashboard/reports");
-      }
-    } catch (err) {
-      setError("Terjadi kesalahan.");
     } finally {
       setIsLoading(false);
     }
@@ -100,7 +75,7 @@ export default function Home() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="dev@mili.id"
+                placeholder="nama@domain.com"
                 className="w-full px-4 py-2.5 rounded-xl border border-[#1E293B] bg-[#090D16] focus:outline-none focus:border-[#10B981] transition-colors text-sm font-mono"
               />
             </div>
@@ -145,31 +120,6 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Demo Credentials Box */}
-        <div className="rounded-2xl border border-[#1E293B]/60 bg-[#121824]/50 p-6 flex flex-col gap-3">
-          <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-[#10B981] flex items-center gap-1.5">
-            🔑 Akun Uji Coba (Demo Logins)
-          </h3>
-          <p className="text-xs text-[#94A3B8] leading-relaxed font-sans">
-            Gunakan kredensial berikut untuk masuk sebagai Developer atau Manajemen:
-          </p>
-          <div className="grid grid-cols-2 gap-3 mt-1 text-xs">
-            <button
-              onClick={() => handleDemoLogin("dev@mili.id", "dev123")}
-              className="p-3 rounded-xl border border-[#1E293B] hover:border-[#10B981] bg-[#090D16] text-left transition-all cursor-pointer"
-            >
-              <span className="font-bold text-[#6366F1] block">Developer Role</span>
-              <span className="font-mono text-[10px] text-[#94A3B8] block mt-1">dev@mili.id / dev123</span>
-            </button>
-            <button
-              onClick={() => handleDemoLogin("manager@mili.id", "manager123")}
-              className="p-3 rounded-xl border border-[#1E293B] hover:border-[#10B981] bg-[#090D16] text-left transition-all cursor-pointer"
-            >
-              <span className="font-bold text-amber-400 block">Manajemen Role</span>
-              <span className="font-mono text-[10px] text-[#94A3B8] block mt-1">manager@mili.id / manager123</span>
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
