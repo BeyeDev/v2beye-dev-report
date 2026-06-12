@@ -68,12 +68,12 @@ export async function GET() {
       })),
       repos: repos.map(r => {
         return {
-          repo_id: r.repo_id,
+          id: r.repo_id,
           name: r.repo_name.split('/')[1],
           owner: r.repo_name.split('/')[0],
           language: r.language || 'None',
           commitsCount: commitsCounts[r.repo_id] || 0,
-          isVisible: r.is_visible,
+          is_visible: r.is_visible,
           lastSynced: r.updated_at && r.updated_at !== r.created_at
             ? new Date(r.updated_at).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
             : "Belum disinkronkan"
