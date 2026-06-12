@@ -50,6 +50,7 @@ export async function GET() {
 
     // Load repositories
     let repos: any[] = [];
+    let commitsCounts: Record<string, number> = {};
     if (accounts && accounts.length > 0) {
       const accountIds = accounts.map(a => a.account_id);
       const { data: repositories, error: repoErr } = await supabaseAdmin
@@ -59,6 +60,20 @@ export async function GET() {
 
       if (repoErr) throw repoErr;
       repos = repositories || [];
+
+      if (repos.length > 0) {
+        const repoIds = repos.map(r => r.repo_id);
+        const { data: commitsCountData } = await supabaseAdmin
+          .from('commits')
+          .select('repo_id')
+          .in('repo_id', repoIds);
+
+        if (commitsCountData) {
+          commitsCountData.forEach(c => {
+            commitsCounts[c.repo_id] = (commitsCounts[c.repo_id] || 0) + 1;
+          });
+        }
+      }
     }
 
     return NextResponse.json({
@@ -72,15 +87,16 @@ export async function GET() {
         connectedAt: new Date(a.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
       })),
       repos: repos.map(r => {
-        const acc = accounts.find(a => a.account_id === r.account_id);
         return {
           repo_id: r.repo_id,
           name: r.repo_name.split('/')[1],
           owner: r.repo_name.split('/')[0],
           language: r.language || 'None',
-          commitsCount: 0, // Will be filled on sync
+          commitsCount: commitsCounts[r.repo_id] || 0,
           isVisible: r.is_visible,
-          lastSynced: "Belum disinkronkan"
+          lastSynced: r.updated_at && r.updated_at !== r.created_at
+            ? new Date(r.updated_at).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+            : "Belum disinkronkan"
         };
       })
     });

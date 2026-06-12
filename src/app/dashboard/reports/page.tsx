@@ -16,7 +16,33 @@ interface PRItem {
   number: number;
   title: string;
   repo: string;
-  state: "merged" | "open" | "closed";
+  state: "merged" | "open" | "closed" | string;
+}
+
+interface EpicItem {
+  name: string;
+  owner: string;
+  language: string;
+  progress: number;
+  status: string;
+  difficulty: number;
+}
+
+interface TaskItem {
+  id: string;
+  title: string;
+  repoName: string;
+  type: string;
+  difficulty: number;
+  state: string;
+}
+
+interface DevReportItem {
+  report_id: string;
+  developer: string;
+  notes: string;
+  blockers: string;
+  submittedAt: string;
 }
 
 function StarRating({ count }: { count: number }) {
@@ -53,32 +79,99 @@ export default function ReportsPage() {
       }
     }
   }, [session]);
-  
-  // State input catatan manual developer
-  const [manualNotes, setManualNotes] = useState(
-    "1. Melakukan koordinasi pagi (Daily Standup) terkait migrasi database.\n2. Riset implementasi enkripsi AES-256 pada level Supabase PostgreSQL.\n3. Optimasi performa loading data timeline dengan caching local state."
-  );
-  const [blockers, setBlockers] = useState("Tidak ada kendala berarti hari ini.");
-  
+
+  const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+
+  // Developer states
+  const [commits, setCommits] = useState<CommitItem[]>([]);
+  const [prs, setPrs] = useState<PRItem[]>([]);
+  const [manualNotes, setManualNotes] = useState("");
+  const [blockers, setBlockers] = useState("");
+
+  // Management states
+  const [managementData, setManagementData] = useState<{
+    stats: {
+      sprintName: string;
+      completedTasks: number;
+      activeBugs: number;
+      progressPercent: number;
+    };
+    epics: EpicItem[];
+    activeTasks: TaskItem[];
+    reports: DevReportItem[];
+  } | null>(null);
+
   // State untuk melacak status ekspor
   const [isExporting, setIsExporting] = useState<"none" | "pdf" | "excel" | "share">("none");
+
+  // Load report data from backend
+  const fetchReportData = async () => {
+    if (!session?.user) return;
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/reports?type=${reportType}`);
+      const data = await res.json();
+      if (data.success) {
+        if (data.isManager) {
+          setManagementData({
+            stats: data.stats,
+            epics: data.epics,
+            activeTasks: data.activeTasks,
+            reports: data.reports
+          });
+        } else {
+          setCommits(data.commits || []);
+          setPrs(data.prs || []);
+          setManualNotes(data.report?.manual_notes || "");
+          setBlockers(data.report?.blockers || "");
+          setIsSubmitted(data.report?.is_submitted || false);
+        }
+      }
+    } catch (err) {
+      console.error("Gagal memuat data laporan:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReportData();
+  }, [session, reportType]);
+
+  const handleSaveReport = async (submit: boolean) => {
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: reportType,
+          manual_notes: manualNotes,
+          blockers,
+          is_submitted: submit
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        setIsSubmitted(submit);
+        await fetchReportData(); // Reload stats and commits
+      } else {
+        alert("Gagal menyimpan laporan: " + data.error);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Gagal menghubungi server untuk menyimpan laporan.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
-
-  // Mock data commits hari ini
-  const commits: CommitItem[] = [
-    { sha: "394016c2", msg: "feat: implement multi-step registration form with client-side image compression", repo: "yudiasmoro-star/v3dsc17-ownhost", additions: 142, deletions: 12 },
-    { sha: "02eaadb0", msg: "feat: implement PWA update banner and initialize layout configuration", repo: "BeyeDev/MyMaiyah-TWS", additions: 64, deletions: 4 },
-    { sha: "8b723db1", msg: "docs: update README.md with project-specific documentation", repo: "BeyeDev/web-mili-dev", additions: 15, deletions: 1 },
-  ];
-
-  // Mock data PRs
-  const prs: PRItem[] = [
-    { number: 42, title: "feat: implement local storage draft persistence for registration", repo: "yudiasmoro-star/v3dsc17-ownhost", state: "merged" },
-    { number: 18, title: "refactor: migrate database schemas to self-hosted MySQL", repo: "BeyeDev/OWNV4-DSC17-2026", state: "open" },
-  ];
 
   // Trigger export simulation
   const handleExport = (type: "pdf" | "excel" | "share") => {
@@ -103,10 +196,40 @@ export default function ReportsPage() {
   };
 
   const getReportPeriod = () => {
-    if (reportType === "daily") return "12 Juni 2026 (Hari Ini)";
-    if (reportType === "weekly") return "08 Juni 2026 - 12 Juni 2026 (Minggu Ini)";
-    return "Mei 2026 - Juni 2026 (Bulan Ini)";
+    const todayStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    if (reportType === "daily") return `${todayStr} (Hari Ini)`;
+    if (reportType === "weekly") return "Minggu Ini (Senin - Minggu)";
+    return "Bulan Ini (1 - Akhir Bulan)";
   };
+
+  if (loading) {
+    return (
+      <div className={`${theme} min-h-screen flex flex-col bg-[var(--color-bg)] text-[var(--color-text-primary)] font-sans`}>
+        <header className="fixed top-4 left-4 right-4 z-50 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)]/80 backdrop-blur-md px-6 py-4 flex items-center justify-between shadow-md">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-[var(--color-border)] animate-pulse" />
+            <div className="w-24 h-5 rounded bg-[var(--color-border)] animate-pulse" />
+          </div>
+          <div className="w-32 h-8 rounded-lg bg-[var(--color-border)] animate-pulse" />
+        </header>
+        <main className="pt-28 pb-24 md:pb-16 px-6 max-w-7xl mx-auto w-full flex-1 flex flex-col gap-6">
+          <div className="flex flex-col gap-2">
+            <div className="w-48 h-8 rounded bg-[var(--color-border)] animate-pulse" />
+            <div className="w-96 h-4 rounded bg-[var(--color-border)] animate-pulse" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+            <div className="h-32 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] animate-pulse" />
+            <div className="h-32 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] animate-pulse" />
+            <div className="h-32 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] animate-pulse" />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+            <div className="lg:col-span-2 h-96 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] animate-pulse" />
+            <div className="lg:col-span-1 h-96 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] animate-pulse" />
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className={`${theme} min-h-screen flex flex-col transition-colors duration-300 bg-[var(--color-bg)] text-[var(--color-text-primary)] font-sans`}>
@@ -194,15 +317,17 @@ export default function ReportsPage() {
               <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6 flex flex-col justify-between gap-4">
                 <div>
                   <span className="text-xs font-mono font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">Siklus Sprint Aktif</span>
-                  <h3 className="text-2xl font-bold mt-1 text-[var(--color-text-primary)]">Sprint 12 (Q2)</h3>
+                  <h3 className="text-2xl font-bold mt-1 text-[var(--color-text-primary)]">
+                    {managementData?.stats?.sprintName || "Sprint 12 (Q2)"}
+                  </h3>
                 </div>
                 <div className="flex flex-col gap-2">
                   <div className="flex justify-between text-xs font-mono">
                     <span className="text-[var(--color-text-secondary)]">Kemajuan Tugas</span>
-                    <span className="font-bold text-[var(--color-accent-success)]">75% Selesai</span>
+                    <span className="font-bold text-[var(--color-accent-success)]">{managementData?.stats?.progressPercent || 75}% Selesai</span>
                   </div>
                   <div className="w-full bg-[var(--color-bg)] rounded-full h-2 overflow-hidden border border-[var(--color-border)]">
-                    <div className="bg-gradient-to-r from-emerald-400 to-teal-500 h-2 rounded-full transition-all duration-500" style={{ width: "75%" }} />
+                    <div className="bg-gradient-to-r from-emerald-400 to-teal-500 h-2 rounded-full transition-all duration-500" style={{ width: `${managementData?.stats?.progressPercent || 75}%` }} />
                   </div>
                 </div>
               </div>
@@ -211,11 +336,12 @@ export default function ReportsPage() {
               <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6 flex flex-col justify-between gap-2">
                 <div>
                   <span className="text-xs font-mono font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">Pekerjaan Terselesaikan</span>
-                  <h3 className="text-3xl font-extrabold mt-2 text-[var(--color-accent-info)]">14</h3>
+                  <h3 className="text-3xl font-extrabold mt-2 text-[var(--color-accent-info)]">
+                    {managementData?.stats?.completedTasks ?? 14}
+                  </h3>
                 </div>
                 <div className="text-xs text-[var(--color-text-secondary)] font-mono leading-relaxed mt-2">
-                  • 11 Fitur Utama & Dokumentasi<br />
-                  • 3 Perbaikan Bug Kritis
+                  Pekerjaan diselesaikan pada repo yang dipantau (total PR merged & task ditutup).
                 </div>
               </div>
 
@@ -223,11 +349,15 @@ export default function ReportsPage() {
               <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6 flex flex-col justify-between gap-2">
                 <div>
                   <span className="text-xs font-mono font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">Kendala / Bug Aktif</span>
-                  <h3 className="text-3xl font-extrabold mt-2 text-red-500">2</h3>
+                  <h3 className={`text-3xl font-extrabold mt-2 ${managementData?.stats?.activeBugs && managementData.stats.activeBugs > 0 ? 'text-red-500' : 'text-[var(--color-accent-success)]'}`}>
+                    {managementData?.stats?.activeBugs ?? 0}
+                  </h3>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-                  <span className="text-xs text-red-500 font-mono">Resiko Rendah (Tidak Memblokir Rilis)</span>
+                  <span className={`w-2.5 h-2.5 rounded-full ${managementData?.stats?.activeBugs && managementData.stats.activeBugs > 0 ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`} />
+                  <span className={`text-xs font-mono ${managementData?.stats?.activeBugs && managementData.stats.activeBugs > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                    {managementData?.stats?.activeBugs && managementData.stats.activeBugs > 0 ? 'Ada blocker yang terdeteksi' : 'Bebas blocker / bug kritis'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -242,91 +372,90 @@ export default function ReportsPage() {
                     <svg className="w-5 h-5 text-[var(--color-accent-info)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                     </svg>
-                    Epics & Inisiatif Utama (High-Level Progress)
+                    Progres Repositori Aktif (GitHub Connected Repos)
                   </h2>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                    {/* Epic Card 1 */}
-                    <div className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] flex flex-col justify-between gap-4 hover:border-[var(--color-accent-info)]/30 transition-all cursor-pointer">
-                      <div>
-                        <div className="flex justify-between items-start gap-2">
-                          <h4 className="text-sm font-bold leading-tight">Form Registrasi Multi-Step</h4>
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">In Progress</span>
+                    {managementData?.epics && managementData.epics.length > 0 ? (
+                      managementData.epics.map((epic, idx) => (
+                        <div key={idx} className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] flex flex-col justify-between gap-4 hover:border-[var(--color-accent-info)]/30 transition-all cursor-pointer">
+                          <div>
+                            <div className="flex justify-between items-start gap-2">
+                              <h4 className="text-sm font-bold leading-tight">{epic.name}</h4>
+                              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full shrink-0 ${epic.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'}`}>{epic.status}</span>
+                            </div>
+                            <p className="text-[11px] text-[var(--color-text-secondary)] mt-1 leading-relaxed">Repositori {epic.owner}/{epic.name} ({epic.language})</p>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <div className="flex justify-between items-center text-[10px] font-mono">
+                              <StarRating count={epic.difficulty} />
+                              <span className="font-bold text-[var(--color-text-secondary)]">{epic.progress}% Selesai</span>
+                            </div>
+                            <div className="w-full bg-[var(--color-card)] rounded-full h-1.5 overflow-hidden">
+                              <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${epic.progress}%` }} />
+                            </div>
+                            <div className="flex items-center gap-1 text-[10px] text-[var(--color-text-secondary)] font-mono mt-1">
+                              <span>Owner:</span>
+                              <span className="font-bold text-[var(--color-text-primary)]">{epic.owner}</span>
+                            </div>
+                          </div>
                         </div>
-                        <p className="text-[11px] text-[var(--color-text-secondary)] mt-1 leading-relaxed">Formulir pendaftaran bertahap dengan kompresi gambar otomatis.</p>
+                      ))
+                    ) : (
+                      <div className="text-center col-span-2 py-8 text-[var(--color-text-secondary)] font-mono text-xs">
+                        Belum ada repositori aktif yang terhubung.
                       </div>
-                      <div className="flex flex-col gap-2">
-                        <div className="flex justify-between items-center text-[10px] font-mono">
-                          <StarRating count={4} />
-                          <span className="font-bold text-[var(--color-text-secondary)]">80% Selesai</span>
-                        </div>
-                        <div className="w-full bg-[var(--color-card)] rounded-full h-1.5 overflow-hidden">
-                          <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: "80%" }} />
-                        </div>
-                        <div className="flex items-center gap-1 text-[10px] text-[var(--color-text-secondary)] font-mono mt-1">
-                          <span>Owner:</span>
-                          <span className="font-bold text-[var(--color-text-primary)]">BeyeDev</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Epic Card 2 */}
-                    <div className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] flex flex-col justify-between gap-4 hover:border-[var(--color-accent-info)]/30 transition-all cursor-pointer">
-                      <div>
-                        <div className="flex justify-between items-start gap-2">
-                          <h4 className="text-sm font-bold leading-tight">PWA Auto-Update Banner</h4>
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">Completed</span>
-                        </div>
-                        <p className="text-[11px] text-[var(--color-text-secondary)] mt-1 leading-relaxed">Sistem deteksi pembaruan otomatis untuk pengguna PWA.</p>
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        <div className="flex justify-between items-center text-[10px] font-mono">
-                          <StarRating count={2} />
-                          <span className="font-bold text-[var(--color-text-secondary)]">100% Selesai</span>
-                        </div>
-                        <div className="w-full bg-[var(--color-card)] rounded-full h-1.5 overflow-hidden">
-                          <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: "100%" }} />
-                        </div>
-                        <div className="flex items-center gap-1 text-[10px] text-[var(--color-text-secondary)] font-mono mt-1">
-                          <span>Owner:</span>
-                          <span className="font-bold text-[var(--color-text-primary)]">BeyeDev</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Epic Card 3 */}
-                    <div className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] flex flex-col justify-between gap-4 hover:border-[var(--color-accent-info)]/30 transition-all cursor-pointer">
-                      <div>
-                        <div className="flex justify-between items-start gap-2">
-                          <h4 className="text-sm font-bold leading-tight">Migrasi Database & Supabase</h4>
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">In Progress</span>
-                        </div>
-                        <p className="text-[11px] text-[var(--color-text-secondary)] mt-1 leading-relaxed">Migrasi skema database utama ke infrastruktur cloud Supabase.</p>
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        <div className="flex justify-between items-center text-[10px] font-mono">
-                          <StarRating count={5} />
-                          <span className="font-bold text-[var(--color-text-secondary)]">50% Selesai</span>
-                        </div>
-                        <div className="w-full bg-[var(--color-card)] rounded-full h-1.5 overflow-hidden">
-                          <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: "50%" }} />
-                        </div>
-                        <div className="flex items-center gap-1 text-[10px] text-[var(--color-text-secondary)] font-mono mt-1">
-                          <span>Owner:</span>
-                          <span className="font-bold text-[var(--color-text-primary)]">BeyeDev</span>
-                        </div>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Simplified Active Issues */}
+                {/* Developer Reports Feed */}
+                <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
+                  <h2 className="text-base font-mono font-bold uppercase tracking-wider mb-4 border-b border-[var(--color-border)] pb-2 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-[var(--color-accent-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Laporan Pengembang Terbaru (Developer Work Logs)
+                  </h2>
+
+                  <div className="flex flex-col gap-4 max-h-[350px] overflow-y-auto pr-1">
+                    {managementData?.reports && managementData.reports.length > 0 ? (
+                      managementData.reports.map((rep, idx) => (
+                        <div key={idx} className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] flex flex-col gap-2">
+                          <div className="flex justify-between items-center border-b border-[var(--color-border)] pb-2">
+                            <div>
+                              <span className="font-mono font-bold text-sm text-[var(--color-text-primary)]">{rep.developer}</span>
+                              <span className="text-[10px] text-[var(--color-text-secondary)] ml-2">({rep.submittedAt})</span>
+                            </div>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-[var(--color-accent-success)] border border-emerald-500/20">
+                              Submitted
+                            </span>
+                          </div>
+                          <div className="text-xs font-mono whitespace-pre-line leading-relaxed text-[var(--color-text-secondary)] mt-1">
+                            <span className="text-[var(--color-text-primary)] font-bold block mb-1">Catatan Manual:</span>
+                            {rep.notes}
+                          </div>
+                          <div className="text-[11px] font-mono text-red-500 bg-red-500/5 p-2 rounded-lg border border-red-500/10 mt-1">
+                            <span className="font-bold">Kendala/Blocker: </span>
+                            {rep.blockers}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-8 text-[var(--color-text-secondary)] font-mono text-xs">
+                        Belum ada laporan kerja pengembang yang diserahkan untuk periode ini.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Active Issues / Tasks Table */}
                 <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
                   <h2 className="text-base font-mono font-bold uppercase tracking-wider mb-4 border-b border-[var(--color-border)] pb-2 flex items-center gap-2">
                     <svg className="w-5 h-5 text-[var(--color-accent-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                     </svg>
-                    Daftar Tugas Aktif (Simplified Tasks Log)
+                    Daftar Tugas Aktif (Issues & Tasks Log)
                   </h2>
 
                   <div className="overflow-x-auto">
@@ -340,46 +469,26 @@ export default function ReportsPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[var(--color-border)]">
-                        <tr className="hover:bg-[var(--color-border)]/20 transition-colors">
-                          <td className="py-3 font-sans font-semibold text-[var(--color-text-primary)]">Migrasi Database & Skema Migrasi Supabase</td>
-                          <td className="py-3 text-center">
-                            <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 text-[10px]">Task</span>
-                          </td>
-                          <td className="py-3 flex justify-center"><StarRating count={5} /></td>
-                          <td className="py-3 text-right">
-                            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 font-bold text-[10px]">In Progress</span>
-                          </td>
-                        </tr>
-                        <tr className="hover:bg-[var(--color-border)]/20 transition-colors">
-                          <td className="py-3 font-sans font-semibold text-[var(--color-text-primary)]">Optimasi Cache Timeline State Lokal</td>
-                          <td className="py-3 text-center">
-                            <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 text-[10px]">Task</span>
-                          </td>
-                          <td className="py-3 flex justify-center"><StarRating count={3} /></td>
-                          <td className="py-3 text-right">
-                            <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-bold text-[10px]">Completed</span>
-                          </td>
-                        </tr>
-                        <tr className="hover:bg-[var(--color-border)]/20 transition-colors">
-                          <td className="py-3 font-sans font-semibold text-[var(--color-text-primary)]">Fix Bug Memory Leak di Staging Upload</td>
-                          <td className="py-3 text-center">
-                            <span className="px-2 py-0.5 rounded bg-red-500/10 text-red-500 border border-red-500/20 text-[10px]">Bug</span>
-                          </td>
-                          <td className="py-3 flex justify-center"><StarRating count={4} /></td>
-                          <td className="py-3 text-right">
-                            <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-bold text-[10px]">Resolved</span>
-                          </td>
-                        </tr>
-                        <tr className="hover:bg-[var(--color-border)]/20 transition-colors">
-                          <td className="py-3 font-sans font-semibold text-[var(--color-text-primary)]">Riset Implementasi Enkripsi AES-256 Supabase</td>
-                          <td className="py-3 text-center">
-                            <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 text-[10px]">Task</span>
-                          </td>
-                          <td className="py-3 flex justify-center"><StarRating count={3} /></td>
-                          <td className="py-3 text-right">
-                            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 font-bold text-[10px]">In Progress</span>
-                          </td>
-                        </tr>
+                        {managementData?.activeTasks && managementData.activeTasks.length > 0 ? (
+                          managementData.activeTasks.map((task, idx) => (
+                            <tr key={idx} className="hover:bg-[var(--color-border)]/20 transition-colors">
+                              <td className="py-3 font-sans font-semibold text-[var(--color-text-primary)]">{task.title}</td>
+                              <td className="py-3 text-center">
+                                <span className={`px-2 py-0.5 rounded text-[10px] ${task.type === 'Bug' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-indigo-500/10 text-indigo-500 border border-indigo-500/20'}`}>{task.type}</span>
+                              </td>
+                              <td className="py-3 flex justify-center"><StarRating count={task.difficulty} /></td>
+                              <td className="py-3 text-right">
+                                <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${task.state === 'Completed' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>{task.state}</span>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={4} className="text-center py-6 text-[var(--color-text-secondary)] font-mono text-xs">
+                              Tidak ada tugas aktif yang terdeteksi. Silakan hubungkan repositori dan jalankan sinkronisasi.
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -526,49 +635,66 @@ export default function ReportsPage() {
             </div>
           </div>
         ) : (
-          /* Developer Dashboard Layout (Original) */
+          /* Developer Dashboard Layout */
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left: Interactive Preview & Manual Input */}
             <div className="lg:col-span-2 flex flex-col gap-6">
               
               {/* Manual Context Input (Hanya untuk Developer) */}
               {(!session || (session.user as any).role === "Developer") && (
-              <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
-                <h2 className="text-base font-mono font-bold uppercase tracking-wider mb-4 border-b border-[var(--color-border)] pb-2 flex items-center gap-2">
-                  <svg className="w-5 h-5 text-[var(--color-accent-info)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  Catatan Konteks Kerja Manual (Developer Input)
-                </h2>
+                <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
+                  <h2 className="text-base font-mono font-bold uppercase tracking-wider mb-4 border-b border-[var(--color-border)] pb-2 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-[var(--color-accent-info)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Catatan Konteks Kerja Manual (Developer Input)
+                  </h2>
 
-                <div className="flex flex-col gap-4">
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs font-mono font-semibold text-[var(--color-text-secondary)]">
-                      Konteks Aktivitas Non-GitHub (Meeting, Riset, Debugging Lokal, dll.)
-                    </label>
-                    <textarea
-                      rows={4}
-                      value={manualNotes}
-                      onChange={(e) => setManualNotes(e.target.value)}
-                      className="w-full px-4 py-3 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] focus:outline-none focus:border-[var(--color-accent-success)] transition-colors font-mono"
-                      placeholder="Masukkan poin-poin pekerjaan Anda hari ini..."
-                    />
-                  </div>
+                  <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-2">
+                      <label className="text-xs font-mono font-semibold text-[var(--color-text-secondary)]">
+                        Konteks Aktivitas Non-GitHub (Meeting, Riset, Debugging Lokal, dll.)
+                      </label>
+                      <textarea
+                        rows={4}
+                        value={manualNotes}
+                        onChange={(e) => setManualNotes(e.target.value)}
+                        className="w-full px-4 py-3 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] focus:outline-none focus:border-[var(--color-accent-success)] transition-colors font-mono"
+                        placeholder="Masukkan poin-poin pekerjaan Anda hari ini..."
+                      />
+                    </div>
 
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs font-mono font-semibold text-[var(--color-text-secondary)]">
-                      Kendala / Blocker Kerja
-                    </label>
-                    <input
-                      type="text"
-                      value={blockers}
-                      onChange={(e) => setBlockers(e.target.value)}
-                      className="w-full px-4 py-3 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] focus:outline-none focus:border-[var(--color-accent-success)] transition-colors font-mono"
-                      placeholder="Masukkan blocker jika ada..."
-                    />
+                    <div className="flex flex-col gap-2">
+                      <label className="text-xs font-mono font-semibold text-[var(--color-text-secondary)]">
+                        Kendala / Blocker Kerja
+                      </label>
+                      <input
+                        type="text"
+                        value={blockers}
+                        onChange={(e) => setBlockers(e.target.value)}
+                        className="w-full px-4 py-3 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] focus:outline-none focus:border-[var(--color-accent-success)] transition-colors font-mono"
+                        placeholder="Masukkan blocker jika ada..."
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-3 mt-2">
+                      <button
+                        onClick={() => handleSaveReport(false)}
+                        disabled={isSaving}
+                        className="px-4 py-2.5 text-xs font-mono font-semibold rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-border)] transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {isSaving ? "Menyimpan..." : "Simpan Draf"}
+                      </button>
+                      <button
+                        onClick={() => handleSaveReport(true)}
+                        disabled={isSaving}
+                        className="px-4 py-2.5 text-xs font-mono font-semibold rounded-xl bg-[var(--color-accent-success)] text-white hover:opacity-90 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {isSaving ? "Mengirim..." : isSubmitted ? "Kirim Ulang Laporan" : "Kirim Laporan"}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
               )}
 
               {/* Generated Report Preview Card */}
@@ -576,7 +702,14 @@ export default function ReportsPage() {
                 <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-4 mb-6">
                   <div>
                     <span className="text-xs font-mono font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">Preview Output Laporan</span>
-                    <h2 className="text-lg font-bold mt-1">{getReportTitle()}</h2>
+                    <h2 className="text-lg font-bold mt-1 flex items-center gap-2">
+                      {getReportTitle()}
+                      {isSubmitted ? (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-[var(--color-accent-success)] border border-emerald-500/20 shrink-0">Submitted</span>
+                      ) : (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">Draft</span>
+                      )}
+                    </h2>
                   </div>
                   <div className="text-right">
                     <span className="text-xs font-mono text-[var(--color-text-secondary)] block">Periode Pelaporan</span>
@@ -592,19 +725,25 @@ export default function ReportsPage() {
                       GitHub Commits ({commits.length})
                     </h3>
                     <div className="flex flex-col gap-3">
-                      {commits.map((commit, idx) => (
-                        <div key={idx} className="p-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] flex items-center justify-between gap-4">
-                          <div className="flex flex-col">
-                            <span className="text-xs font-mono font-bold text-[var(--color-accent-info)]">{commit.sha}</span>
-                            <span className="text-xs font-semibold mt-1 leading-relaxed">{commit.msg}</span>
-                            <span className="text-[10px] text-[var(--color-text-secondary)] font-mono mt-0.5">{commit.repo}</span>
+                      {commits.length > 0 ? (
+                        commits.map((commit, idx) => (
+                          <div key={idx} className="p-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] flex items-center justify-between gap-4">
+                            <div className="flex flex-col">
+                              <span className="text-xs font-mono font-bold text-[var(--color-accent-info)]">{commit.sha}</span>
+                              <span className="text-xs font-semibold mt-1 leading-relaxed">{commit.msg}</span>
+                              <span className="text-[10px] text-[var(--color-text-secondary)] font-mono mt-0.5">{commit.repo}</span>
+                            </div>
+                            <div className="flex gap-2 text-[10px] font-mono shrink-0">
+                              <span className="text-[var(--color-accent-success)] bg-emerald-500/10 px-2 py-0.5 rounded">+{commit.additions}</span>
+                              <span className="text-red-500 bg-red-500/10 px-2 py-0.5 rounded">-{commit.deletions}</span>
+                            </div>
                           </div>
-                          <div className="flex gap-2 text-[10px] font-mono shrink-0">
-                            <span className="text-[var(--color-accent-success)] bg-emerald-500/10 px-2 py-0.5 rounded">+{commit.additions}</span>
-                            <span className="text-red-500 bg-red-500/10 px-2 py-0.5 rounded">-{commit.deletions}</span>
-                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-6 border border-dashed border-[var(--color-border)] rounded-xl text-[var(--color-text-secondary)] font-mono text-xs">
+                          Belum ada commits dalam periode ini. Silakan jalankan sinkronisasi di halaman Akun GitHub.
                         </div>
-                      ))}
+                      )}
                     </div>
                   </div>
 
@@ -615,17 +754,23 @@ export default function ReportsPage() {
                       Pull Requests ({prs.length})
                     </h3>
                     <div className="flex flex-col gap-3">
-                      {prs.map((pr, idx) => (
-                        <div key={idx} className="p-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] flex items-center justify-between">
-                          <div className="flex flex-col">
-                            <span className="text-xs font-mono text-[var(--color-text-secondary)]">{pr.repo}</span>
-                            <span className="text-xs font-semibold mt-0.5">#{pr.number}: {pr.title}</span>
+                      {prs.length > 0 ? (
+                        prs.map((pr, idx) => (
+                          <div key={idx} className="p-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] flex items-center justify-between">
+                            <div className="flex flex-col">
+                              <span className="text-xs font-mono text-[var(--color-text-secondary)]">{pr.repo}</span>
+                              <span className="text-xs font-semibold mt-0.5">#{pr.number}: {pr.title}</span>
+                            </div>
+                            <span className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full ${pr.state === "merged" ? "bg-emerald-500/10 text-[var(--color-accent-success)] border border-emerald-500/20" : "bg-indigo-500/10 text-[var(--color-accent-info)] border border-indigo-500/20"}`}>
+                              {pr.state}
+                            </span>
                           </div>
-                          <span className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full ${pr.state === "merged" ? "bg-emerald-500/10 text-[var(--color-accent-success)] border border-emerald-500/20" : "bg-indigo-500/10 text-[var(--color-accent-info)] border border-indigo-500/20"}`}>
-                            {pr.state}
-                          </span>
+                        ))
+                      ) : (
+                        <div className="text-center py-6 border border-dashed border-[var(--color-border)] rounded-xl text-[var(--color-text-secondary)] font-mono text-xs">
+                          Belum ada pull requests dalam periode ini.
                         </div>
-                      ))}
+                      )}
                     </div>
                   </div>
                 </div>
