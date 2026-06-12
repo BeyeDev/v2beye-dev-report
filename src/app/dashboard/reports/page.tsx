@@ -154,7 +154,7 @@ export default function ReportsPage() {
       </header>
 
       {/* Main Container */}
-      <main className="pt-28 pb-16 px-6 max-w-7xl mx-auto w-full flex-1 flex flex-col gap-6">
+      <main className="pt-28 pb-24 md:pb-16 px-6 max-w-7xl mx-auto w-full flex-1 flex flex-col gap-6">
         {/* Title and Controls */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--color-border)] pb-6">
           <div>
@@ -743,9 +743,44 @@ export default function ReportsPage() {
           </div>
         )}
       </main>
+      
+      {/* Mobile Bottom Navigation Bar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--color-card)]/90 backdrop-blur-md border-t border-[var(--color-border)] px-6 py-3.5 flex items-center justify-around shadow-2xl">
+        <Link 
+          href="/dashboard/reports" 
+          className="flex flex-col items-center gap-1.5 text-[10px] font-mono text-[var(--color-accent-success)] font-bold transition-all"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Laporan
+        </Link>
+        
+        {(!session || (session.user as any).role === "Developer") && (
+          <Link 
+            href="/accounts" 
+            className="flex flex-col items-center gap-1.5 text-[10px] font-mono text-[var(--color-text-secondary)] hover:text-[var(--color-accent-success)] transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+            Akun GitHub
+          </Link>
+        )}
+
+        <Link 
+          href="/" 
+          className="flex flex-col items-center gap-1.5 text-[10px] font-mono text-[var(--color-text-secondary)] hover:text-[var(--color-accent-success)] transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          Keluar
+        </Link>
+      </div>
 
       {/* Footer */}
-      <footer className="mt-auto py-10 px-6 border-t border-[var(--color-border)] bg-[var(--color-card)]/55 text-center text-xs text-[var(--color-text-secondary)]">
+      <footer className="mt-auto py-10 pb-28 md:pb-10 px-6 border-t border-[var(--color-border)] bg-[var(--color-card)]/55 text-center text-xs text-[var(--color-text-secondary)]">
         <p>© 2026 PT Mili Cipta Karya. All rights reserved.</p>
       </footer>
     </div>

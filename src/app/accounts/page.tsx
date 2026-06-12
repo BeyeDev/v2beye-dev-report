@@ -160,7 +160,7 @@ export default function AccountsPage() {
 
       {/* Main Container */}
       {session && (session.user as any).role === "Manajemen" ? (
-        <main className="pt-28 pb-16 px-6 max-w-2xl mx-auto w-full flex-1 flex flex-col justify-center items-center gap-6">
+        <main className="pt-28 pb-24 md:pb-16 px-6 max-w-2xl mx-auto w-full flex-1 flex flex-col justify-center items-center gap-6">
           <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-8 text-center flex flex-col items-center gap-4 shadow-xl">
             <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20">
               <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -179,7 +179,7 @@ export default function AccountsPage() {
           </div>
         </main>
       ) : (
-        <main className="pt-28 pb-16 px-6 max-w-7xl mx-auto w-full flex-1 flex flex-col gap-6">
+        <main className="pt-28 pb-24 md:pb-16 px-6 max-w-7xl mx-auto w-full flex-1 flex flex-col gap-6">
           {/* Title */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
@@ -262,26 +262,26 @@ export default function AccountsPage() {
                     filteredRepos.map((repo, idx) => {
                       const absoluteIdx = repos.findIndex((r) => r.name === repo.name && r.owner === repo.owner);
                       return (
-                        <div key={idx} className="flex items-center justify-between p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] transition-all hover:border-slate-400 dark:hover:border-slate-700">
-                          <div className="flex items-center gap-3">
+                        <div key={idx} className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] transition-all hover:border-slate-400 dark:hover:border-slate-700">
+                          <div className="flex items-start gap-3">
                             {/* Toggle Visibilitas */}
                             <button
                               onClick={() => handleToggleVisibility(absoluteIdx)}
-                              className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-300 ${repo.isVisible ? "bg-[var(--color-accent-success)]" : "bg-slate-300 dark:bg-slate-700"}`}
+                              className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-300 shrink-0 ${repo.isVisible ? "bg-[var(--color-accent-success)]" : "bg-slate-300 dark:bg-slate-700"}`}
                             >
                               <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${repo.isVisible ? "translate-x-5" : "translate-x-0"}`}></div>
                             </button>
                             <div>
                               <span className="font-mono text-xs text-[var(--color-text-secondary)] block">{repo.owner} /</span>
-                              <span className="font-mono font-bold text-sm">{repo.name}</span>
-                              <div className="flex items-center gap-3 text-[10px] text-[var(--color-text-secondary)] mt-1">
+                              <span className="font-mono font-bold text-sm text-[var(--color-text-primary)]">{repo.name}</span>
+                              <div className="flex flex-wrap items-center gap-3 text-[10px] text-[var(--color-text-secondary)] mt-1">
                                 <span className="px-1.5 py-0.5 rounded bg-[var(--color-border)] font-mono">{repo.language}</span>
                                 <span>Sinkronisasi: {repo.lastSynced}</span>
                               </div>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-4">
+                          <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto border-t sm:border-t-0 border-[var(--color-border)] pt-3 sm:pt-0 shrink-0">
                             <span className="text-xs font-mono font-semibold">{repo.commitsCount} Commits</span>
                             <button
                               onClick={() => handleSyncRepo(absoluteIdx)}
@@ -397,8 +397,43 @@ export default function AccountsPage() {
         </div>
       )}
 
+      {/* Mobile Bottom Navigation Bar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--color-card)]/90 backdrop-blur-md border-t border-[var(--color-border)] px-6 py-3.5 flex items-center justify-around shadow-2xl">
+        <Link 
+          href="/dashboard/reports" 
+          className="flex flex-col items-center gap-1.5 text-[10px] font-mono text-[var(--color-text-secondary)] hover:text-[var(--color-accent-success)] transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Laporan
+        </Link>
+        
+        {(!session || (session.user as any).role === "Developer") && (
+          <Link 
+            href="/accounts" 
+            className="flex flex-col items-center gap-1.5 text-[10px] font-mono text-[var(--color-accent-success)] font-bold transition-all"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+            Akun GitHub
+          </Link>
+        )}
+
+        <Link 
+          href="/" 
+          className="flex flex-col items-center gap-1.5 text-[10px] font-mono text-[var(--color-text-secondary)] hover:text-[var(--color-accent-success)] transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          Keluar
+        </Link>
+      </div>
+
       {/* Footer */}
-      <footer className="mt-auto py-10 px-6 border-t border-[var(--color-border)] bg-[var(--color-card)]/55 text-center text-xs text-[var(--color-text-secondary)]">
+      <footer className="mt-auto py-10 pb-28 md:pb-10 px-6 border-t border-[var(--color-border)] bg-[var(--color-card)]/55 text-center text-xs text-[var(--color-text-secondary)]">
         <p>© 2026 PT Mili Cipta Karya. All rights reserved.</p>
       </footer>
     </div>
