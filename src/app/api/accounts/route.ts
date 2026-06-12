@@ -3,27 +3,7 @@ import { auth } from '@/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { encrypt, decrypt } from '@/lib/crypto';
 
-// Helper to get or create master_user record in Supabase
-async function getOrCreateUser(email: string, name: string, role: string) {
-  if (!supabaseAdmin) throw new Error("Supabase Admin client not configured");
-
-  const { data: existing, error: fetchErr } = await supabaseAdmin
-    .from('master_user')
-    .select('*')
-    .eq('email', email)
-    .maybeSingle();
-
-  if (existing) return existing;
-
-  const { data: inserted, error: insertErr } = await supabaseAdmin
-    .from('master_user')
-    .insert([{ email, nama: name || email.split('@')[0], role, status_aktif: true }])
-    .select()
-    .single();
-
-  if (insertErr) throw insertErr;
-  return inserted;
-}
+import { getOrCreateUser } from '@/lib/user';
 
 // GET: Fetch connected accounts and monitored repositories
 export async function GET() {
@@ -33,7 +13,7 @@ export async function GET() {
   }
 
   try {
-    const role = (session.user as any).role || "Developer";
+    const role = session.user.role || "Developer";
     const dbUser = await getOrCreateUser(session.user.email, session.user.name || '', role);
 
     if (!supabaseAdmin) {
@@ -135,7 +115,7 @@ export async function POST(request: Request) {
     const avatarUrl = ghUserData.avatar_url;
 
     // 2. Fetch User from Supabase
-    const role = (session.user as any).role || "Developer";
+    const role = session.user.role || "Developer";
     const dbUser = await getOrCreateUser(session.user.email, session.user.name || '', role);
 
     if (!supabaseAdmin) {
@@ -151,6 +131,9 @@ export async function POST(request: Request) {
 
     let accountId = "";
     if (existingAccount) {
+      if (existingAccount.user_id !== dbUser.user_id) {
+        return NextResponse.json({ success: false, error: "Akun GitHub ini sudah terhubung dengan user lain." }, { status: 403 });
+      }
       // Update token
       const { error: updateErr } = await supabaseAdmin
         .from('github_accounts')
@@ -180,32 +163,48 @@ export async function POST(request: Request) {
       accountId = newAccount.account_id;
     }
 
-    // 3. Fetch User Repositories from GitHub API
-    const reposResponse = await fetch(`https://api.github.com/user/repos?per_page=100&type=owner`, {
-      headers: {
-        'Authorization': `token ${token}`,
-        'User-Agent': 'MCK-DevReport-Sync'
-      }
-    });
-
-    if (reposResponse.ok) {
-      const reposData = await reposResponse.json();
-      if (Array.isArray(reposData)) {
-        // Prepare rows
-        const rows = reposData.map((r: any) => ({
-          account_id: accountId,
-          repo_name: r.full_name,
-          is_visible: true,
-          language: r.language || 'None',
-          updated_at: new Date().toISOString()
-        }));
-
-        // Upsert into monitored_repositories
-        for (const row of rows) {
-          await supabaseAdmin
-            .from('monitored_repositories')
-            .upsert([row], { onConflict: 'account_id,repo_name' });
+    // 3. Fetch User Repositories from GitHub API with pagination
+    let page = 1;
+    let hasMore = true;
+    
+    while (hasMore) {
+      const reposResponse = await fetch(`https://api.github.com/user/repos?per_page=100&page=${page}&type=owner`, {
+        headers: {
+          'Authorization': `token ${token}`,
+          'User-Agent': 'MCK-DevReport-Sync'
         }
+      });
+
+      if (reposResponse.ok) {
+        const reposData = await reposResponse.json();
+        if (Array.isArray(reposData) && reposData.length > 0) {
+          // Prepare rows
+          const rows = reposData.map((r: any) => ({
+            account_id: accountId,
+            repo_name: r.full_name,
+            is_visible: true,
+            language: r.language || 'None',
+            updated_at: new Date().toISOString()
+          }));
+
+          // Upsert into monitored_repositories
+          for (const row of rows) {
+            await supabaseAdmin
+              .from('monitored_repositories')
+              .upsert([row], { onConflict: 'account_id,repo_name' });
+          }
+
+          if (reposData.length < 100) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        } else {
+          hasMore = false;
+        }
+      } else {
+        hasMore = false;
+        console.error(`Failed to fetch repos page ${page}:`, await reposResponse.text());
       }
     }
 

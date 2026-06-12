@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
-import { SessionProvider } from "next-auth/react";
+import { Providers } from "@/components/Providers";
 import "./globals.css";
 
 const inter = Inter({
@@ -29,9 +29,9 @@ export default function RootLayout({
       className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans bg-[var(--color-bg)] text-[var(--color-text-primary)]">
-        <SessionProvider>
+        <Providers>
           {children}
-        </SessionProvider>
+        </Providers>
       </body>
     </html>
   );

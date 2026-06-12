@@ -18,6 +18,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Supabase not configured" }, { status: 500 });
     }
 
+    const { data: dbUser } = await supabaseAdmin
+      .from('master_user')
+      .select('user_id')
+      .eq('email', session.user.email)
+      .single();
+
+    if (!dbUser) {
+      return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
+    }
+
+    const { data: repo } = await supabaseAdmin
+      .from('monitored_repositories')
+      .select('*, github_accounts(user_id)')
+      .eq('repo_id', repo_id)
+      .single();
+
+    if (!repo) {
+      return NextResponse.json({ success: false, error: "Repository not found" }, { status: 404 });
+    }
+
+    if (repo.github_accounts?.user_id !== dbUser.user_id) {
+      return NextResponse.json({ success: false, error: "Forbidden: Not your repository" }, { status: 403 });
+    }
+
     const { error } = await supabaseAdmin
       .from('monitored_repositories')
       .update({ is_visible: is_visible, updated_at: new Date().toISOString() })

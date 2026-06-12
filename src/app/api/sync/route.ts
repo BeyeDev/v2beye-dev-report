@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
+import { auth } from '@/auth';
 
 export async function GET(request: Request) {
+  const session = await auth();
+  if (!session?.user?.email) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const repoParam = searchParams.get('repo');
   const tokenParam = searchParams.get('token');

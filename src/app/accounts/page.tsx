@@ -3,47 +3,35 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { DashboardLayout } from "@/components/layout/DashboardLayout";
 
 interface GitHubAccount {
   username: string;
-  avatarUrl: string;
-  reposCount: number;
-  status: "Active" | "Expired";
-  connectedAt: string;
+  avatar_url: string;
 }
 
 interface Repository {
+  id: string;
   name: string;
   owner: string;
-  language: string;
-  commitsCount: number;
-  isVisible: boolean;
-  lastSynced: string;
-  isSyncing?: boolean;
+  is_visible: boolean;
 }
 
 export default function AccountsPage() {
   const { data: session } = useSession();
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isConnecting, setIsConnecting] = useState(false);
+  
   const [showModal, setShowModal] = useState(false);
-  const [newUsername, setNewUsername] = useState("");
-  const [patToken, setPatToken] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  // Live state variables linked to DB
+  const [githubToken, setGithubToken] = useState("");
+  const [isConnecting, setIsConnecting] = useState(false);
+  
   const [accounts, setAccounts] = useState<GitHubAccount[]>([]);
   const [repos, setRepos] = useState<Repository[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
-  };
+  const [searchQuery, setSearchQuery] = useState("");
 
-  // Load connected accounts and repos from Supabase via API
   const fetchUserData = async () => {
     try {
-      setLoading(true);
       const res = await fetch("/api/accounts");
       const data = await res.json();
       if (data.success) {
@@ -51,102 +39,73 @@ export default function AccountsPage() {
         setRepos(data.repos || []);
       }
     } catch (err) {
-      console.error("Gagal memuat data akun dari Supabase:", err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (session?.user) {
-      fetchUserData();
-    }
-  }, [session]);
+    fetchUserData();
+  }, []);
 
-  // Toggle visibility status in Supabase
-  const handleToggleVisibility = async (index: number) => {
-    const repo = repos[index];
-    const newVisibility = !repo.isVisible;
-
-    // Optimistic UI Update
-    setRepos((prev) =>
-      prev.map((r, idx) => (idx === index ? { ...r, isVisible: newVisibility } : r))
-    );
-
+  const toggleVisibility = async (repoId: string, currentVisibility: boolean) => {
     try {
+      // Optimistic update
+      setRepos(repos.map(r => r.id === repoId ? { ...r, is_visible: !currentVisibility } : r));
+      
       const res = await fetch("/api/repos/toggle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repo_id: (repo as any).repo_id, is_visible: newVisibility })
+        body: JSON.stringify({ repo_id: repoId, is_visible: !currentVisibility })
       });
       const data = await res.json();
       if (!data.success) {
-        // Rollback state
-        setRepos((prev) =>
-          prev.map((r, idx) => (idx === index ? { ...r, isVisible: repo.isVisible } : r))
-        );
-        alert("Gagal merubah visibilitas: " + data.error);
+        // Revert on failure
+        setRepos(repos.map(r => r.id === repoId ? { ...r, is_visible: currentVisibility } : r));
+        alert("Gagal mengubah visibilitas: " + data.error);
       }
     } catch (err) {
       console.error(err);
-      setRepos((prev) =>
-        prev.map((r, idx) => (idx === index ? { ...r, isVisible: repo.isVisible } : r))
-      );
+      // Revert on failure
+      setRepos(repos.map(r => r.id === repoId ? { ...r, is_visible: currentVisibility } : r));
     }
   };
 
-  // Trigger sync API (pulls real commits and PRs from GitHub and saves in Supabase)
-  const handleSyncRepo = async (index: number) => {
-    const repo = repos[index];
-    
-    // Set loading spinner state
-    setRepos((prev) =>
-      prev.map((r, idx) => (idx === index ? { ...r, isSyncing: true } : r))
-    );
-
+  const handleSync = async (repoId: string) => {
     try {
       const res = await fetch("/api/repos/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repo_id: (repo as any).repo_id })
+        body: JSON.stringify({ repo_id: repoId })
       });
       const data = await res.json();
       if (data.success) {
-        alert(`Sinkronisasi '${repo.owner}/${repo.name}' berhasil! Terunduh ${data.commitsCount} commits baru ke Supabase.`);
-        await fetchUserData(); // Refresh stats from DB
+        alert(`Sinkronisasi berhasil! ${data.commitsCount} commit baru ditemukan.`);
       } else {
-        alert("Gagal sinkronisasi: " + data.error);
-        setRepos((prev) =>
-          prev.map((r, idx) => (idx === index ? { ...r, isSyncing: false } : r))
-        );
+        alert("Sinkronisasi gagal: " + data.error);
       }
     } catch (err) {
       console.error(err);
-      alert("Gagal menghubungi server sync.");
-      setRepos((prev) =>
-        prev.map((r, idx) => (idx === index ? { ...r, isSyncing: false } : r))
-      );
+      alert("Terjadi kesalahan saat sinkronisasi.");
     }
   };
 
-  // Save new connected account to Supabase
-  const handleConnectAccount = async (e: React.FormEvent) => {
+  const connectAccount = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUsername.trim() || !patToken.trim()) return;
+    if (!githubToken) return;
 
     setIsConnecting(true);
     try {
       const res = await fetch("/api/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: newUsername, token: patToken })
+        body: JSON.stringify({ token: githubToken })
       });
       const data = await res.json();
       if (data.success) {
-        alert(data.message);
+        setGithubToken("");
         setShowModal(false);
-        setNewUsername("");
-        setPatToken("");
         await fetchUserData(); // Reload list
       } else {
         alert("Gagal menghubungkan: " + data.error);
@@ -167,53 +126,9 @@ export default function AccountsPage() {
   );
 
   return (
-    <div className={`${theme} min-h-screen flex flex-col transition-colors duration-300 bg-[var(--color-bg)] text-[var(--color-text-primary)] font-sans`}>
-      {/* Header */}
-      <header className="fixed top-4 left-4 right-4 z-50 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)]/80 backdrop-blur-md px-6 py-4 flex items-center justify-between shadow-md">
-        <div className="flex items-center gap-2">
-          <Link href="/" className="flex items-center gap-2 cursor-pointer">
-            <svg className="w-8 h-8 text-[var(--color-accent-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <span className="font-mono font-bold text-lg tracking-wider">DevReport</span>
-          </Link>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-border)] text-[var(--color-text-secondary)] font-mono">Panel</span>
-        </div>
-
-        <nav className="hidden md:flex items-center gap-6 font-mono text-sm">
-          {(!session || (session.user as any).role === "Developer") && (
-            <Link href="/accounts" className="text-[var(--color-accent-success)] border-b border-[var(--color-accent-success)] pb-1 font-bold">Akun GitHub</Link>
-          )}
-          <Link href="/dashboard/reports" className="hover:text-[var(--color-accent-success)] transition-colors">Laporan</Link>
-          <Link href="/" className="hover:text-[var(--color-accent-success)] transition-colors">Halaman Utama</Link>
-        </nav>
-
-        <div className="flex items-center gap-4">
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-border)] transition-all cursor-pointer"
-            title="Ganti Mode Tampilan"
-          >
-            {theme === "dark" ? (
-              <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 7a5 5 0 100 10 5 5 0 000-10z" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-              </svg>
-            )}
-          </button>
-
-          <Link href="/" className="px-4 py-2 text-sm font-mono font-semibold rounded-xl bg-[var(--color-border)] hover:opacity-90 transition-all cursor-pointer">
-            Keluar
-          </Link>
-        </div>
-      </header>
-
-      {/* Main Container */}
-      {session && (session.user as any).role === "Manajemen" ? (
-        <main className="pt-28 pb-24 md:pb-16 px-6 max-w-2xl mx-auto w-full flex-1 flex flex-col justify-center items-center gap-6">
+    <DashboardLayout activeTab="accounts">
+      {session && session.user.role === "Manajemen" ? (
+        <div className="flex-1 flex flex-col justify-center items-center gap-6 max-w-2xl mx-auto w-full">
           <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-8 text-center flex flex-col items-center gap-4 shadow-xl">
             <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20">
               <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -230,223 +145,183 @@ export default function AccountsPage() {
               </Link>
             </div>
           </div>
-        </main>
+        </div>
       ) : (
-        <main className="pt-28 pb-24 md:pb-16 px-6 max-w-7xl mx-auto w-full flex-1 flex flex-col gap-6">
+        <>
           {/* Title */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--color-border)] pb-6">
             <div>
               <h1 className="text-3xl font-extrabold font-mono tracking-tight">Koneksi Multi-Akun</h1>
               <p className="text-[var(--color-text-secondary)] mt-1">Kelola akun GitHub Anda dan pilih repositori untuk pelaporan.</p>
             </div>
-          <button
-            onClick={() => setShowModal(true)}
-            className="px-5 py-2.5 font-mono font-semibold rounded-xl bg-[var(--color-accent-success)] text-white hover:opacity-90 transition-all cursor-pointer flex items-center justify-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            Hubungkan Akun Baru
-          </button>
-        </div>
-
-        {/* Bento Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Column 1: Connected Accounts List */}
-          <div className="lg:col-span-1 flex flex-col gap-6">
-            <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
-              <h2 className="text-lg font-bold font-mono mb-4 border-b border-[var(--color-border)] pb-2">Akun Terhubung</h2>
-              
-              <div className="flex flex-col gap-4">
-                {loading ? (
-                  <div className="text-center py-6 text-[var(--color-text-secondary)] font-mono text-xs animate-pulse">
-                    Memuat daftar akun...
-                  </div>
-                ) : accounts.length > 0 ? (
-                  accounts.map((acc, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)]">
-                      <div className="flex items-center gap-3">
-                        <img src={acc.avatarUrl} alt={acc.username} className="w-12 h-12 rounded-xl object-cover border border-[var(--color-border)]" />
-                        <div>
-                          <span className="font-mono font-bold text-sm block">{acc.username}</span>
-                          <span className="text-xs text-[var(--color-text-secondary)]">Terhubung: {acc.connectedAt}</span>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <span className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full ${acc.status === "Active" ? "bg-emerald-500/10 text-[var(--color-accent-success)] border border-emerald-500/20" : "bg-red-500/10 text-red-500 border border-red-500/20"}`}>
-                          {acc.status}
-                        </span>
-                        <span className="text-xs text-[var(--color-text-secondary)] font-mono">{acc.reposCount} Repos</span>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-6 text-[var(--color-text-secondary)] font-mono text-xs">
-                    Belum ada akun GitHub terhubung.
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Quick Tips */}
-            <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
-              <h3 className="text-sm font-mono font-bold uppercase tracking-wider text-[var(--color-accent-success)] mb-2">💡 Tips Keamanan</h3>
-              <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
-                Token akses GitHub Anda disimpan dengan enkripsi militer AES-256 di database terenkripsi kami. Anda dapat menghapus otorisasi atau memutuskan sambungan akun kapan saja dari pengaturan.
-              </p>
-            </div>
+            <button
+              onClick={() => setShowModal(true)}
+              className="px-5 py-2.5 font-mono font-semibold rounded-xl bg-[var(--color-accent-success)] text-white hover:opacity-90 transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Hubungkan Akun Baru
+            </button>
           </div>
 
-          {/* Column 2 & 3: Repositories List */}
-          <div className="lg:col-span-2">
-            <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6 h-full flex flex-col justify-between">
-              <div>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-[var(--color-border)] pb-4">
-                  <h2 className="text-lg font-bold font-mono">Daftar Repositori Terpantau</h2>
-                  
-                  {/* Search Bar */}
-                  <div className="relative w-full sm:w-64">
-                    <input
-                      type="text"
-                      placeholder="Cari repositori..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] focus:outline-none focus:border-[var(--color-accent-success)] transition-colors"
-                    />
-                    <svg className="w-5 h-5 absolute left-3 top-2.5 text-[var(--color-text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-4">
+            {/* Left Column: Connected Accounts */}
+            <div className="lg:col-span-1 space-y-4">
+              <h2 className="text-sm font-mono font-bold uppercase tracking-wider text-[var(--color-text-secondary)] border-b border-[var(--color-border)] pb-2">Akun Terhubung</h2>
+              
+              {loading ? (
+                <div className="space-y-3">
+                  {[1, 2].map(i => (
+                    <div key={i} className="h-20 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] animate-pulse" />
+                  ))}
+                </div>
+              ) : accounts.length === 0 ? (
+                <div className="bento-card bg-[var(--color-card)] border border-dashed border-[var(--color-border)] p-8 text-center flex flex-col items-center">
+                  <div className="w-12 h-12 rounded-full bg-[var(--color-border)] flex items-center justify-center mb-3">
+                    <svg className="w-6 h-6 text-[var(--color-text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                     </svg>
                   </div>
+                  <p className="text-sm font-mono text-[var(--color-text-secondary)]">Belum ada akun GitHub yang terhubung.</p>
                 </div>
-
-                {/* Repos List */}
-                <div className="flex flex-col gap-3 max-h-[450px] overflow-y-auto pr-2">
-                  {loading ? (
-                    <div className="text-center py-12 text-[var(--color-text-secondary)] font-mono text-sm animate-pulse">
-                      Memuat daftar repositori...
+              ) : (
+                <div className="space-y-3">
+                  {accounts.map((acc) => (
+                    <div key={acc.username} className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-4 flex items-center gap-4 hover:border-[var(--color-accent-success)] transition-colors">
+                      <img src={acc.avatar_url} alt={acc.username} className="w-12 h-12 rounded-full border border-[var(--color-border)]" />
+                      <div>
+                        <h3 className="font-mono font-bold">{acc.username}</h3>
+                        <p className="text-xs text-[var(--color-text-secondary)] flex items-center gap-1 mt-0.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent-success)]"></span> Aktif
+                        </p>
+                      </div>
                     </div>
-                  ) : filteredRepos.length > 0 ? (
-                    filteredRepos.map((repo, idx) => {
-                      const absoluteIdx = repos.findIndex((r) => r.name === repo.name && r.owner === repo.owner);
-                      return (
-                        <div key={idx} className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] transition-all hover:border-slate-400 dark:hover:border-slate-700">
-                          <div className="flex items-start gap-3">
-                            {/* Toggle Visibilitas */}
-                            <button
-                              onClick={() => handleToggleVisibility(absoluteIdx)}
-                              className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-300 shrink-0 ${repo.isVisible ? "bg-[var(--color-accent-success)]" : "bg-slate-300 dark:bg-slate-700"}`}
-                            >
-                              <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${repo.isVisible ? "translate-x-5" : "translate-x-0"}`}></div>
-                            </button>
-                            <div>
-                              <span className="font-mono text-xs text-[var(--color-text-secondary)] block">{repo.owner} /</span>
-                              <span className="font-mono font-bold text-sm text-[var(--color-text-primary)]">{repo.name}</span>
-                              <div className="flex flex-wrap items-center gap-3 text-[10px] text-[var(--color-text-secondary)] mt-1">
-                                <span className="px-1.5 py-0.5 rounded bg-[var(--color-border)] font-mono">{repo.language}</span>
-                                <span>Sinkronisasi: {repo.lastSynced}</span>
-                              </div>
-                            </div>
-                          </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
-                          <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto border-t sm:border-t-0 border-[var(--color-border)] pt-3 sm:pt-0 shrink-0">
-                            <span className="text-xs font-mono font-semibold">{repo.commitsCount} Commits</span>
-                            <button
-                              onClick={() => handleSyncRepo(absoluteIdx)}
-                              disabled={repo.isSyncing}
-                              className={`p-2 rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-border)] transition-all cursor-pointer ${repo.isSyncing ? "opacity-50 cursor-wait" : ""}`}
-                              title="Sinkronkan repo ini"
-                            >
-                              {repo.isSyncing ? (
-                                <svg className="w-4 h-4 animate-spin text-[var(--color-accent-info)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15.89M21 21v-5h-.581" />
-                                </svg>
-                              ) : (
-                                <svg className="w-4 h-4 text-[var(--color-accent-info)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15.89M21 21v-5h-.581" />
-                                </svg>
-                              )}
-                            </button>
-                          </div>
+            {/* Right Column: Repositories */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-2">
+                <h2 className="text-sm font-mono font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Repositori Terdeteksi</h2>
+                
+                {/* Search Bar */}
+                <div className="relative">
+                  <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input 
+                    type="text" 
+                    placeholder="Cari repo..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 pr-4 py-1.5 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg text-sm font-mono focus:outline-none focus:border-[var(--color-accent-success)] transition-colors w-48 lg:w-64"
+                  />
+                </div>
+              </div>
+
+              {loading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="h-24 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] animate-pulse" />
+                  ))}
+                </div>
+              ) : repos.length === 0 ? (
+                <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-12 text-center text-[var(--color-text-secondary)] font-mono text-sm">
+                  Hubungkan akun GitHub untuk melihat daftar repositori.
+                </div>
+              ) : filteredRepos.length === 0 ? (
+                <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-12 text-center text-[var(--color-text-secondary)] font-mono text-sm">
+                  Tidak ada repositori yang cocok dengan pencarian "{searchQuery}".
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {filteredRepos.map((repo) => (
+                    <div key={repo.id} className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-5 flex flex-col justify-between gap-4 group">
+                      <div className="flex items-start justify-between">
+                        <div className="min-w-0">
+                          <p className="text-xs text-[var(--color-text-secondary)] font-mono truncate">{repo.owner}</p>
+                          <h3 className="font-bold font-mono text-lg truncate group-hover:text-[var(--color-accent-success)] transition-colors">{repo.name}</h3>
                         </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-center py-12 text-[var(--color-text-secondary)] font-mono text-sm">
-                      Tidak ada repositori ditemukan.
+                        <div className="flex items-center gap-2">
+                          {/* Sync Button */}
+                          <button
+                            onClick={() => handleSync(repo.id)}
+                            className="p-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] hover:bg-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-all"
+                            title="Sinkronisasi Manual"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15.89M21 21v-5h-.581" />
+                            </svg>
+                          </button>
+                          
+                          {/* Toggle Switch */}
+                          <button 
+                            onClick={() => toggleVisibility(repo.id, repo.is_visible)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${repo.is_visible ? 'bg-[var(--color-accent-success)]' : 'bg-gray-400 dark:bg-gray-600'}`}
+                            title={repo.is_visible ? "Sembunyikan dari Laporan" : "Tampilkan di Laporan"}
+                          >
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${repo.is_visible ? 'translate-x-6' : 'translate-x-1'}`} />
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 text-xs font-mono">
+                        <span className={`px-2 py-0.5 rounded-md ${repo.is_visible ? 'bg-[var(--color-accent-success)]/10 text-[var(--color-accent-success)] border border-[var(--color-accent-success)]/20' : 'bg-[var(--color-border)] text-[var(--color-text-secondary)]'}`}>
+                          {repo.is_visible ? "Termonitor" : "Diabaikan"}
+                        </span>
+                      </div>
                     </div>
-                  )}
+                  ))}
                 </div>
-              </div>
-
-              <div className="pt-4 border-t border-[var(--color-border)] mt-6 flex justify-between items-center text-xs text-[var(--color-text-secondary)]">
-                <span>Total terpantau: {repos.filter((r) => r.isVisible).length} repo</span>
-                <span className="font-mono">Terakhir sinkronisasi massal: 30 menit yang lalu</span>
-              </div>
+              )}
             </div>
           </div>
-        </div>
-      </main>
+        </>
       )}
 
-      {/* Connect Account Modal */}
+      {/* Connection Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-2xl w-full max-w-md p-6 shadow-2xl transition-all scale-100">
-            <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3 mb-4">
-              <h3 className="font-bold font-mono text-lg">Hubungkan Akun GitHub</h3>
-              <button
-                onClick={() => setShowModal(false)}
-                className="p-1 rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-border)] transition-all cursor-pointer"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bento-card bg-[var(--color-bg)] w-full max-w-md border border-[var(--color-border)] shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-[var(--color-border)] flex items-center justify-between">
+              <h3 className="font-mono font-bold text-lg">Hubungkan Akun GitHub</h3>
+              <button onClick={() => setShowModal(false)} className="text-[var(--color-text-secondary)] hover:text-red-500 transition-colors">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-
-            <form onSubmit={handleConnectAccount} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-mono font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
-                  Username GitHub
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: BeyeDev"
-                  value={newUsername}
-                  onChange={(e) => setNewUsername(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] focus:outline-none focus:border-[var(--color-accent-success)] transition-colors text-sm"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-mono font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
-                  GitHub Personal Access Token (PAT)
-                </label>
-                <input
-                  type="password"
-                  required
+            
+            <form onSubmit={connectAccount} className="p-6 space-y-6">
+              <div className="space-y-2">
+                <label className="text-sm font-mono font-semibold text-[var(--color-text-secondary)] block">Personal Access Token (PAT)</label>
+                <input 
+                  type="password" 
+                  value={githubToken}
+                  onChange={(e) => setGithubToken(e.target.value)}
                   placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                  value={patToken}
-                  onChange={(e) => setPatToken(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] focus:outline-none focus:border-[var(--color-accent-success)] transition-colors text-sm"
+                  className="w-full bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl p-3 font-mono text-sm focus:outline-none focus:border-[var(--color-accent-success)] focus:ring-1 focus:ring-[var(--color-accent-success)] transition-all"
+                  required
                 />
-                <span className="text-[10px] text-[var(--color-text-secondary)] leading-relaxed">
-                  Harus memiliki hak akses `repo` dan `read:user`. Token disimpan terenkripsi secara aman.
-                </span>
+                <p className="text-xs text-[var(--color-text-secondary)] mt-2">
+                  Token membutuhkan scope <code className="bg-[var(--color-border)] px-1 py-0.5 rounded text-[var(--color-text-primary)]">repo</code> dan <code className="bg-[var(--color-border)] px-1 py-0.5 rounded text-[var(--color-text-primary)]">read:user</code>.
+                </p>
               </div>
 
-              <div className="flex items-center gap-3 justify-end pt-3 border-t border-[var(--color-border)]">
-                <button
-                  type="button"
+              <div className="flex justify-end gap-3 pt-2">
+                <button 
+                  type="button" 
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 rounded-xl border border-[var(--color-border)] text-sm font-mono cursor-pointer hover:bg-[var(--color-border)]"
+                  className="px-4 py-2 rounded-xl text-sm font-mono font-semibold text-[var(--color-text-secondary)] hover:bg-[var(--color-border)] transition-colors"
                 >
                   Batal
                 </button>
-                <button
-                  type="submit"
-                  disabled={isConnecting}
+                <button 
+                  type="submit" 
+                  disabled={!githubToken || isConnecting}
                   className="px-4 py-2 rounded-xl bg-[var(--color-accent-success)] text-white text-sm font-mono font-semibold cursor-pointer hover:opacity-90 transition-all flex items-center gap-2"
                 >
                   {isConnecting ? (
@@ -465,46 +340,6 @@ export default function AccountsPage() {
           </div>
         </div>
       )}
-
-      {/* Mobile Bottom Navigation Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--color-card)]/90 backdrop-blur-md border-t border-[var(--color-border)] px-6 py-3.5 flex items-center justify-around shadow-2xl">
-        <Link 
-          href="/dashboard/reports" 
-          className="flex flex-col items-center gap-1.5 text-[10px] font-mono text-[var(--color-text-secondary)] hover:text-[var(--color-accent-success)] transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          Laporan
-        </Link>
-        
-        {(!session || (session.user as any).role === "Developer") && (
-          <Link 
-            href="/accounts" 
-            className="flex flex-col items-center gap-1.5 text-[10px] font-mono text-[var(--color-accent-success)] font-bold transition-all"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-            </svg>
-            Akun GitHub
-          </Link>
-        )}
-
-        <Link 
-          href="/" 
-          className="flex flex-col items-center gap-1.5 text-[10px] font-mono text-[var(--color-text-secondary)] hover:text-[var(--color-accent-success)] transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          </svg>
-          Keluar
-        </Link>
-      </div>
-
-      {/* Footer */}
-      <footer className="mt-auto py-10 pb-28 md:pb-10 px-6 border-t border-[var(--color-border)] bg-[var(--color-card)]/55 text-center text-xs text-[var(--color-text-secondary)]">
-        <p>© 2026 PT Mili Cipta Karya. All rights reserved.</p>
-      </footer>
-    </div>
+    </DashboardLayout>
   );
 }

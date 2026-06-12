@@ -53,7 +53,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // Saat login pertama kali
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role || "Developer";
+        token.role = user.role || "Developer";
       }
       if (account && profile) {
         token.accessToken = account.access_token;
@@ -63,10 +63,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id = token.id;
-        (session.user as any).role = token.role;
-        (session as any).accessToken = token.accessToken;
-        (session as any).username = token.username;
+        session.user.id = token.id as string;
+        session.user.role = token.role as string;
+        session.accessToken = token.accessToken as string;
+        session.username = token.username as string;
       }
       return session;
     },
