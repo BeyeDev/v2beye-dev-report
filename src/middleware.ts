@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 
 export default auth((req) => {
@@ -18,12 +19,12 @@ export default auth((req) => {
 
   // Prevent access to public routes (like login) if already logged in
   if (isPublicRoute && isLoggedIn) {
-    return Response.redirect(new URL("/dashboard/reports", req.nextUrl));
+    return NextResponse.redirect(new URL("/dashboard/reports", req.nextUrl));
   }
 
   // Redirect to login if accessing protected routes without login
   if (!isLoggedIn && !isPublicRoute && !isApiRoute) {
-    return Response.redirect(new URL("/", req.nextUrl));
+    return NextResponse.redirect(new URL("/", req.nextUrl));
   }
 
   return;
