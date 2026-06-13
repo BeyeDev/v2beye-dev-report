@@ -167,12 +167,12 @@ export default function AccountsPage() {
           {/* Title */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--color-border)] pb-6">
             <div>
-              <h1 className="text-3xl font-extrabold font-mono tracking-tight">Koneksi Multi-Akun</h1>
-              <p className="text-[var(--color-text-secondary)] mt-1">Kelola akun GitHub Anda dan pilih repositori untuk pelaporan.</p>
+              <h1 className="text-2xl sm:text-3xl font-extrabold font-mono tracking-tight">Koneksi Multi-Akun</h1>
+              <p className="text-sm text-[var(--color-text-secondary)] mt-1">Kelola akun GitHub Anda dan pilih repositori untuk pelaporan.</p>
             </div>
             <button
               onClick={() => setShowModal(true)}
-              className="px-5 py-2.5 font-mono font-semibold rounded-xl bg-[var(--color-accent-success)] text-white hover:opacity-90 transition-all cursor-pointer flex items-center justify-center gap-2"
+              className="px-4 sm:px-5 py-2.5 text-sm font-mono font-semibold rounded-xl bg-[var(--color-accent-success)] text-white hover:opacity-90 transition-all cursor-pointer flex items-center justify-center gap-2 w-full sm:w-auto"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -306,8 +306,8 @@ export default function AccountsPage() {
           aria-modal="true"
           aria-labelledby="modal-title"
         >
-          <div className="bento-card bg-[var(--color-bg)] w-full max-w-md border border-[var(--color-border)] shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-[var(--color-border)] flex items-center justify-between">
+          <div className="bento-card bg-[var(--color-bg)] w-full max-w-md border border-[var(--color-border)] shadow-2xl animate-in zoom-in-95 duration-200 mx-2">
+            <div className="p-4 sm:p-6 border-b border-[var(--color-border)] flex items-center justify-between">
               <h3 id="modal-title" className="font-mono font-bold text-lg">Hubungkan Akun GitHub</h3>
               <button onClick={() => setShowModal(false)} className="text-[var(--color-text-secondary)] hover:text-red-500 transition-colors">
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -316,7 +316,7 @@ export default function AccountsPage() {
               </button>
             </div>
             
-            <form onSubmit={connectAccount} className="p-6 space-y-6">
+            <form onSubmit={connectAccount} className="p-4 sm:p-6 space-y-5 sm:space-y-6">
               <div className="space-y-2">
                 <label className="text-sm font-mono font-semibold text-[var(--color-text-secondary)] block">Personal Access Token (PAT)</label>
                 <input 

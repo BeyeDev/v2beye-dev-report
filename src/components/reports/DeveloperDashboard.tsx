@@ -95,7 +95,7 @@ export function DeveloperDashboard({
               />
             </div>
 
-            <div className="flex justify-end gap-3 mt-2">
+            <div className="flex flex-col sm:flex-row justify-end gap-3 mt-2">
               <button
                 onClick={() => handleSaveReport(false)}
                 disabled={isSaving}
@@ -116,11 +116,11 @@ export function DeveloperDashboard({
 
         {/* Generated Report Preview Card */}
         <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6">
-          <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-4 mb-6">
-            <div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[var(--color-border)] pb-4 mb-6 gap-3">
+            <div className="min-w-0">
               <span className="text-xs font-mono font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">Preview Output Laporan</span>
-              <h2 className="text-lg font-bold mt-1 flex items-center gap-2">
-                {reportTitle}
+              <h2 className="text-base sm:text-lg font-bold mt-1 flex items-center gap-2 flex-wrap">
+                <span className="break-words">{reportTitle}</span>
                 {isSubmitted ? (
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-[var(--color-accent-success)] border border-emerald-500/20 shrink-0">Submitted</span>
                 ) : (
@@ -128,7 +128,7 @@ export function DeveloperDashboard({
                 )}
               </h2>
             </div>
-            <div className="text-right">
+            <div className="text-left sm:text-right shrink-0">
               <span className="text-xs font-mono text-[var(--color-text-secondary)] block">Periode Pelaporan</span>
               <span className="text-sm font-mono font-semibold text-[var(--color-accent-success)]">{reportPeriod}</span>
             </div>
@@ -155,18 +155,18 @@ export function DeveloperDashboard({
                         </span>
                       </div>
                       <div className="flex flex-col gap-2.5">
-                        {group.commits.map((commit, idx) => (
-                          <div key={idx} className="flex items-center justify-between gap-4 pl-3 border-l-2 border-[var(--color-border)] hover:border-[var(--color-accent-info)] transition-colors">
-                            <div className="flex flex-col">
-                              <div className="flex items-center gap-2">
+                          {group.commits.map((commit, idx) => (
+                          <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4 pl-3 border-l-2 border-[var(--color-border)] hover:border-[var(--color-accent-info)] transition-colors">
+                            <div className="flex flex-col min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-[10px] font-mono font-bold text-[var(--color-accent-info)]">{commit.sha.substring(0, 8)}</span>
                                 <span className="text-[9px] text-[var(--color-text-secondary)] font-mono">
                                   {commit.date ? new Date(commit.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}
                                 </span>
                               </div>
-                              <span className="text-xs font-semibold mt-1 leading-relaxed text-[var(--color-text-primary)]">{commit.msg}</span>
+                              <span className="text-xs font-semibold mt-1 leading-relaxed text-[var(--color-text-primary)] break-words">{commit.msg}</span>
                             </div>
-                            <div className="flex gap-1.5 text-[9px] font-mono shrink-0">
+                            <div className="flex gap-1.5 text-[9px] font-mono shrink-0 pl-3 sm:pl-0">
                               <span className="text-[var(--color-accent-success)] bg-emerald-500/10 px-1.5 py-0.5 rounded">+{commit.additions}</span>
                               <span className="text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded">-{commit.deletions}</span>
                             </div>
@@ -191,13 +191,13 @@ export function DeveloperDashboard({
               </h3>
               <div className="flex flex-col gap-3">
                 {prs.length > 0 ? (
-                  prs.map((pr, idx) => (
-                    <div key={idx} className="p-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] flex items-center justify-between">
-                      <div className="flex flex-col">
+                    prs.map((pr, idx) => (
+                    <div key={idx} className="p-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex flex-col min-w-0">
                         <span className="text-xs font-mono text-[var(--color-text-secondary)]">{pr.repo}</span>
-                        <span className="text-xs font-semibold mt-0.5">#{pr.number}: {pr.title}</span>
+                        <span className="text-xs font-semibold mt-0.5 break-words">#{pr.number}: {pr.title}</span>
                       </div>
-                      <span className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full ${pr.state === "merged" ? "bg-emerald-500/10 text-[var(--color-accent-success)] border border-emerald-500/20" : "bg-indigo-500/10 text-[var(--color-accent-info)] border border-indigo-500/20"}`}>
+                      <span className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full shrink-0 self-start sm:self-auto ${pr.state === "merged" ? "bg-emerald-500/10 text-[var(--color-accent-success)] border border-emerald-500/20" : "bg-indigo-500/10 text-[var(--color-accent-info)] border border-indigo-500/20"}`}>
                         {pr.state}
                       </span>
                     </div>

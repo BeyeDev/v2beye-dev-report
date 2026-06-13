@@ -140,27 +140,27 @@ export default function ReportsPage() {
       {/* Title and Controls */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--color-border)] pb-6">
         <div>
-          <h1 className="text-3xl font-extrabold font-mono tracking-tight">Pusat Laporan Kerja</h1>
-          <p className="text-[var(--color-text-secondary)] mt-1">Hasilkan laporan aktivitas teragregasi dari data GitHub dan catatan manual.</p>
+          <h1 className="text-2xl sm:text-3xl font-extrabold font-mono tracking-tight">Pusat Laporan Kerja</h1>
+          <p className="text-sm text-[var(--color-text-secondary)] mt-1">Hasilkan laporan aktivitas teragregasi dari data GitHub dan catatan manual.</p>
         </div>
 
         {/* Report Type Tabs */}
         <div className="flex gap-2 p-1 rounded-2xl bg-[var(--color-card)] border border-[var(--color-border)] self-start md:self-auto">
           <button
             onClick={() => setReportType("daily")}
-            className={`px-4 py-2 text-xs font-mono font-semibold rounded-xl transition-all cursor-pointer ${reportType === "daily" ? "bg-[var(--color-accent-success)] text-white" : "hover:bg-[var(--color-border)]"}`}
+            className={`px-3 sm:px-4 py-2.5 text-xs font-mono font-semibold rounded-xl transition-all cursor-pointer ${reportType === "daily" ? "bg-[var(--color-accent-success)] text-white" : "hover:bg-[var(--color-border)]"}`}
           >
             Harian
           </button>
           <button
             onClick={() => setReportType("weekly")}
-            className={`px-4 py-2 text-xs font-mono font-semibold rounded-xl transition-all cursor-pointer ${reportType === "weekly" ? "bg-[var(--color-accent-success)] text-white" : "hover:bg-[var(--color-border)]"}`}
+            className={`px-3 sm:px-4 py-2.5 text-xs font-mono font-semibold rounded-xl transition-all cursor-pointer ${reportType === "weekly" ? "bg-[var(--color-accent-success)] text-white" : "hover:bg-[var(--color-border)]"}`}
           >
             Mingguan
           </button>
           <button
             onClick={() => setReportType("monthly")}
-            className={`px-4 py-2 text-xs font-mono font-semibold rounded-xl transition-all cursor-pointer ${reportType === "monthly" ? "bg-[var(--color-accent-success)] text-white" : "hover:bg-[var(--color-border)]"}`}
+            className={`px-3 sm:px-4 py-2.5 text-xs font-mono font-semibold rounded-xl transition-all cursor-pointer ${reportType === "monthly" ? "bg-[var(--color-accent-success)] text-white" : "hover:bg-[var(--color-border)]"}`}
           >
             Bulanan
           </button>

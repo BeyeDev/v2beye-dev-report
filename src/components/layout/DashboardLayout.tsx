@@ -34,7 +34,7 @@ export function DashboardLayout({ children, activeTab }: DashboardLayoutProps) {
   return (
     <div className={`min-h-screen flex flex-col transition-colors duration-300 bg-[var(--color-bg)] text-[var(--color-text-primary)] font-sans`}>
       {/* Header */}
-      <header className="fixed top-4 left-4 right-4 z-50 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)]/80 backdrop-blur-md px-6 py-4 flex items-center justify-between shadow-md">
+      <header className="fixed top-2 left-2 right-2 sm:top-4 sm:left-4 sm:right-4 z-50 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)]/80 backdrop-blur-md px-3 py-3 sm:px-6 sm:py-4 flex items-center justify-between shadow-md">
         <div className="flex items-center gap-2">
           <Link href="/" className="flex items-center gap-2 cursor-pointer">
             <svg className="w-8 h-8 text-[var(--color-accent-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -42,7 +42,7 @@ export function DashboardLayout({ children, activeTab }: DashboardLayoutProps) {
             </svg>
             <span className="font-mono font-bold text-lg tracking-wider hidden sm:inline">DevReport</span>
           </Link>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-border)] text-[var(--color-text-secondary)] font-mono">
+          <span className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full bg-[var(--color-border)] text-[var(--color-text-secondary)] font-mono">
             {activeTab === "reports" ? "Reports" : "Panel"}
           </span>
         </div>
@@ -82,19 +82,19 @@ export function DashboardLayout({ children, activeTab }: DashboardLayoutProps) {
             )}
           </button>
 
-          <button onClick={() => signOut({ callbackUrl: '/' })} className="px-4 py-2 text-sm font-mono font-semibold rounded-xl bg-[var(--color-border)] hover:opacity-90 transition-all cursor-pointer">
+          <button onClick={() => signOut({ callbackUrl: '/' })} className="hidden sm:inline-flex px-4 py-2 text-sm font-mono font-semibold rounded-xl bg-[var(--color-border)] hover:opacity-90 transition-all cursor-pointer">
             Keluar
           </button>
         </div>
       </header>
 
       {/* Main Container */}
-      <main className="pt-28 pb-24 md:pb-16 px-6 max-w-7xl mx-auto w-full flex-1 flex flex-col gap-6">
+      <main className="pt-24 sm:pt-28 pb-28 md:pb-16 px-3 sm:px-6 max-w-7xl mx-auto w-full flex-1 flex flex-col gap-6">
         {children}
       </main>
 
       {/* Mobile Bottom Navigation Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--color-card)]/90 backdrop-blur-md border-t border-[var(--color-border)] px-6 py-3.5 flex items-center justify-around shadow-2xl">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--color-card)]/90 backdrop-blur-md border-t border-[var(--color-border)] px-6 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center justify-around shadow-2xl">
         <Link 
           href="/dashboard/reports" 
           className={`flex flex-col items-center gap-1.5 text-[10px] font-mono transition-colors ${activeTab === 'reports' ? 'text-[var(--color-accent-success)] font-bold' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-accent-success)]'}`}
@@ -129,7 +129,7 @@ export function DashboardLayout({ children, activeTab }: DashboardLayoutProps) {
       </div>
 
       {/* Footer */}
-      <footer className="mt-auto py-10 pb-28 md:pb-10 px-6 border-t border-[var(--color-border)] bg-[var(--color-card)]/55 text-center text-xs text-[var(--color-text-secondary)]">
+      <footer className="mt-auto py-10 pb-32 md:pb-10 px-6 border-t border-[var(--color-border)] bg-[var(--color-card)]/55 text-center text-xs text-[var(--color-text-secondary)]">
         <p>© 2026 PT Mili Cipta Karya. All rights reserved.</p>
       </footer>
     </div>
