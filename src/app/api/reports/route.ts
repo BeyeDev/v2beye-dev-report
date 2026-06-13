@@ -361,7 +361,7 @@ export async function GET(request: Request) {
           activeBugs,
           progressPercent: totalCommits > 0 ? Math.min(100, Math.round((completedTasks / (completedTasks + openIssues + 1)) * 100)) : 75
         },
-        epics: epics.slice(0, 4),
+        epics: epics,
         activeTasks: activeTasks.slice(0, 10),
         reports: reportsList
       });
