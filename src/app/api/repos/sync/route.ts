@@ -78,23 +78,21 @@ export async function POST(request: Request) {
       if (commitsResponse.ok) {
         const commitsData = await commitsResponse.json();
         if (Array.isArray(commitsData) && commitsData.length > 0) {
-          // Upsert commits into database
-          for (const c of commitsData) {
-            const authorName = c.author?.login || c.commit.author?.name || 'Unknown';
-            const { error: commitErr } = await supabaseAdmin
-              .from('commits')
-              .upsert([{
-                repo_id: repo_id,
-                sha: c.sha,
-                message: c.commit.message.split('\n')[0],
-                author_username: authorName,
-                additions: c.stats?.additions || 0,
-                deletions: c.stats?.deletions || 0,
-                commit_date: c.commit.author.date,
-                branch_name: 'main'
-              }], { onConflict: 'sha' });
-            if (!commitErr) commitsCount++;
-          }
+          // Batch Upsert commits into database
+          const commitUpserts = commitsData.map((c: any) => ({
+            repo_id: repo_id,
+            sha: c.sha,
+            message: c.commit.message.split('\n')[0],
+            author_username: c.author?.login || c.commit.author?.name || 'Unknown',
+            additions: c.stats?.additions || 0,
+            deletions: c.stats?.deletions || 0,
+            commit_date: c.commit.author.date,
+            branch_name: 'main'
+          }));
+          const { error: commitErr } = await supabaseAdmin
+            .from('commits')
+            .upsert(commitUpserts, { onConflict: 'sha' });
+          if (!commitErr) commitsCount += commitUpserts.length;
           if (commitsData.length < 100) hasMoreCommits = false;
           else commitsPage++;
         } else {
@@ -121,21 +119,20 @@ export async function POST(request: Request) {
       if (prsResponse.ok) {
         const prsData = await prsResponse.json();
         if (Array.isArray(prsData) && prsData.length > 0) {
-          // Upsert PRs into database
-          for (const p of prsData) {
-            await supabaseAdmin
-              .from('pull_requests')
-              .upsert([{
-                repo_id: repo_id,
-                number: p.number,
-                title: p.title,
-                state: p.state === 'closed' && p.merged_at ? 'merged' : p.state,
-                creator_username: p.user.login,
-                created_at: p.created_at,
-                merged_at: p.merged_at,
-                closed_at: p.closed_at
-              }], { onConflict: 'repo_id,number' });
-          }
+          // Batch Upsert PRs into database
+          const prUpserts = prsData.map((p: any) => ({
+            repo_id: repo_id,
+            number: p.number,
+            title: p.title,
+            state: p.state === 'closed' && p.merged_at ? 'merged' : p.state,
+            creator_username: p.user.login,
+            created_at: p.created_at,
+            merged_at: p.merged_at,
+            closed_at: p.closed_at
+          }));
+          await supabaseAdmin
+            .from('pull_requests')
+            .upsert(prUpserts, { onConflict: 'repo_id,number' });
           if (prsData.length < 100) hasMorePrs = false;
           else prsPage++;
         } else {

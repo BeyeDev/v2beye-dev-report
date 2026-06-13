@@ -14,20 +14,25 @@ export function DashboardLayout({ children, activeTab }: DashboardLayoutProps) {
   const [theme, setTheme] = useState("dark");
   
   useEffect(() => {
-    const saved = localStorage.getItem("mc-theme");
-    if (saved) setTheme(saved);
+    const saved = localStorage.getItem("mc-theme") || "dark";
+    setTheme(saved);
   }, []);
 
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
     localStorage.setItem("mc-theme", next);
+    if (next === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
   };
 
   const isDeveloper = !session || session.user.role === "Developer";
 
   return (
-    <div className={`${theme} min-h-screen flex flex-col transition-colors duration-300 bg-[var(--color-bg)] text-[var(--color-text-primary)] font-sans`}>
+    <div className={`min-h-screen flex flex-col transition-colors duration-300 bg-[var(--color-bg)] text-[var(--color-text-primary)] font-sans`}>
       {/* Header */}
       <header className="fixed top-4 left-4 right-4 z-50 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)]/80 backdrop-blur-md px-6 py-4 flex items-center justify-between shadow-md">
         <div className="flex items-center gap-2">

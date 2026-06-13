@@ -270,76 +270,52 @@ export async function GET(request: Request) {
       });
 
       const db = supabaseAdmin;
-      const reportsList = await Promise.all(reports.map(async (r) => {
+      const userIds = [...new Set(reports.map(r => r.user_id))];
+      const { data: allAccounts } = await db
+        .from('github_accounts')
+        .select('account_id, github_username, user_id')
+        .in('user_id', userIds);
+      
+      const reportsList = reports.map((r) => {
         // Find developer's GitHub usernames and repo IDs
-        const { data: accounts } = await db
-          .from('github_accounts')
-          .select('account_id, github_username')
-          .eq('user_id', r.user_id);
+        const userAccounts = allAccounts?.filter(a => a.user_id === r.user_id) || [];
+        const accountIds = userAccounts.map(a => a.account_id);
+        const usernames = userAccounts.map(a => a.github_username);
 
-        const accountIds = accounts?.map(a => a.account_id) || [];
-        const usernames = accounts?.map(a => a.github_username) || [];
-
-        let repoIds: string[] = [];
+        let userRepoIds: string[] = [];
         let repoMap: Record<string, string> = {};
+        
         if (accountIds.length > 0) {
-          const { data: repos } = await db
-            .from('monitored_repositories')
-            .select('repo_id, repo_name')
-            .in('account_id', accountIds);
-
-          repoIds = repos?.map(r => r.repo_id) || [];
-          repos?.forEach(rp => {
+          const userRepos = repos?.filter(rp => accountIds.includes(rp.account_id)) || [];
+          userRepoIds = userRepos.map(rp => rp.repo_id);
+          userRepos.forEach(rp => {
             repoMap[rp.repo_id] = rp.repo_name;
           });
         }
 
-        let commitsList: any[] = [];
-        let prsList: any[] = [];
+        let userCommitsList: any[] = [];
+        let userPrsList: any[] = [];
 
-        if (repoIds.length > 0 && usernames.length > 0) {
-          let commitsStartIso = startIso;
-          let prsStartIso = startIso;
-          if (typeParam === 'daily') {
-            const d = new Date(startIso);
-            d.setDate(d.getDate() - 7);
-            commitsStartIso = d.toISOString();
-            prsStartIso = d.toISOString();
-          }
+        if (userRepoIds.length > 0 && usernames.length > 0) {
+          userCommitsList = commitsList
+            .filter(c => userRepoIds.includes(c.repo_id) && usernames.includes(c.author_username))
+            .map(c => ({
+              sha: c.sha,
+              msg: c.message,
+              repo: repoMap[c.repo_id] || 'Unknown Repo',
+              additions: c.additions,
+              deletions: c.deletions,
+              date: c.commit_date
+            }));
 
-          const { data: commits } = await db
-            .from('commits')
-            .select('*')
-            .in('repo_id', repoIds)
-            .gte('commit_date', commitsStartIso)
-            .lte('commit_date', endIso)
-            .in('author_username', usernames)
-            .order('commit_date', { ascending: false });
-
-          commitsList = commits?.map(c => ({
-            sha: c.sha,
-            msg: c.message,
-            repo: repoMap[c.repo_id] || 'Unknown Repo',
-            additions: c.additions,
-            deletions: c.deletions,
-            date: c.commit_date
-          })) || [];
-
-          const { data: prs } = await db
-            .from('pull_requests')
-            .select('*')
-            .in('repo_id', repoIds)
-            .gte('created_at', prsStartIso)
-            .lte('created_at', endIso)
-            .in('creator_username', usernames)
-            .order('created_at', { ascending: false });
-
-          prsList = prs?.map(p => ({
-            number: p.number,
-            title: p.title,
-            repo: repoMap[p.repo_id] || 'Unknown Repo',
-            state: p.state
-          })) || [];
+          userPrsList = prsList
+            .filter(p => userRepoIds.includes(p.repo_id) && usernames.includes(p.creator_username))
+            .map(p => ({
+              number: p.number,
+              title: p.title,
+              repo: repoMap[p.repo_id] || 'Unknown Repo',
+              state: p.state
+            }));
         }
 
         return {
@@ -348,10 +324,10 @@ export async function GET(request: Request) {
           notes: r.manual_notes,
           blockers: r.auto_summary?.blockers || 'Tidak ada kendala',
           submittedAt: new Date(r.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-          commits: commitsList,
-          prs: prsList
+          commits: userCommitsList,
+          prs: userPrsList
         };
-      }));
+      });
 
       return NextResponse.json({
         success: true,

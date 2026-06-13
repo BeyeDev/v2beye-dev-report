@@ -43,16 +43,13 @@ export async function GET() {
 
       if (repos.length > 0) {
         const repoIds = repos.map(r => r.repo_id);
-        const { data: commitsCountData } = await supabaseAdmin
-          .from('commits')
-          .select('repo_id')
-          .in('repo_id', repoIds);
-
-        if (commitsCountData) {
-          commitsCountData.forEach(c => {
-            commitsCounts[c.repo_id] = (commitsCounts[c.repo_id] || 0) + 1;
-          });
-        }
+        await Promise.all(repoIds.map(async (repoId) => {
+          const { count } = await supabaseAdmin
+            .from('commits')
+            .select('*', { count: 'exact', head: true })
+            .eq('repo_id', repoId);
+          if (count) commitsCounts[repoId] = count;
+        }));
       }
     }
 
@@ -188,12 +185,10 @@ export async function POST(request: Request) {
             updated_at: new Date().toISOString()
           }));
 
-          // Upsert into monitored_repositories
-          for (const row of rows) {
-            await supabaseAdmin
-              .from('monitored_repositories')
-              .upsert([row], { onConflict: 'account_id,repo_name' });
-          }
+          // Upsert into monitored_repositories in batch
+          await supabaseAdmin
+            .from('monitored_repositories')
+            .upsert(rows, { onConflict: 'account_id,repo_name' });
 
           if (reposData.length < 100) {
             hasMore = false;

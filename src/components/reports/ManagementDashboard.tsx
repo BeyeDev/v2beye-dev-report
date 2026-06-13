@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { EpicItem, TaskItem, DevReportItem } from "@/types/report";
@@ -26,6 +28,14 @@ export function ManagementDashboard({ managementData }: ManagementDashboardProps
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedEpicKey(null);
+    };
+    if (selectedEpicKey) window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [selectedEpicKey]);
+
   const activeEpic = managementData?.epics?.find(e => `${e.owner}/${e.name}` === selectedEpicKey);
 
   return (
@@ -37,16 +47,16 @@ export function ManagementDashboard({ managementData }: ManagementDashboardProps
           <div>
             <span className="text-xs font-mono font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">Siklus Sprint Aktif</span>
             <h3 className="text-2xl font-bold mt-1 text-[var(--color-text-primary)]">
-              {managementData?.stats?.sprintName || "Sprint 12 (Q2)"}
+              {managementData?.stats?.sprintName ?? "Sprint 12 (Q2)"}
             </h3>
           </div>
           <div className="flex flex-col gap-2">
             <div className="flex justify-between text-xs font-mono">
               <span className="text-[var(--color-text-secondary)]">Kemajuan Tugas</span>
-              <span className="font-bold text-[var(--color-accent-success)]">{managementData?.stats?.progressPercent || 75}% Selesai</span>
+              <span className="font-bold text-[var(--color-accent-success)]">{managementData?.stats?.progressPercent ?? 0}% Selesai</span>
             </div>
             <div className="w-full bg-[var(--color-bg)] rounded-full h-2 overflow-hidden border border-[var(--color-border)]">
-              <div className="bg-gradient-to-r from-emerald-400 to-teal-500 h-2 rounded-full transition-all duration-500" style={{ width: `${managementData?.stats?.progressPercent || 75}%` }} />
+              <div className="bg-gradient-to-r from-emerald-400 to-teal-500 h-2 rounded-full transition-all duration-500" style={{ width: `${managementData?.stats?.progressPercent ?? 0}%` }} />
             </div>
           </div>
         </div>
@@ -339,7 +349,12 @@ export function ManagementDashboard({ managementData }: ManagementDashboardProps
 
       {/* Detailed Commits List Modal / Bottom Sheet */}
       {mounted && activeEpic && createPortal(
-        <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div 
+          className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-title"
+        >
           {/* Backdrop click to close */}
           <div className="absolute inset-0 cursor-pointer" onClick={() => setSelectedEpicKey(null)} />
           
@@ -351,7 +366,7 @@ export function ManagementDashboard({ managementData }: ManagementDashboardProps
             
             {/* Header */}
             <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3 shrink-0">
-              <h4 className="text-xs sm:text-sm font-mono font-bold text-[var(--color-text-primary)] flex items-center gap-1.5">
+              <h4 id="modal-title" className="text-xs sm:text-sm font-mono font-bold text-[var(--color-text-primary)] flex items-center gap-1.5">
                 <span className="w-1.5 h-3 rounded bg-[var(--color-accent-info)]/80"></span>
                 {activeEpic.owner}/{activeEpic.name}
               </h4>

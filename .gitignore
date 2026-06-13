@@ -43,3 +43,4 @@ next-env.d.ts
 # credentials & local agent tools
 credential note.txt
 .agent/
+test-supabase.mjs

@@ -8,29 +8,41 @@ const getEncryptionKey = () => {
   return key;
 };
 
-const IV_LENGTH = 16; // For AES, this is always 16
+const IV_LENGTH = 12; // Standard for GCM
+const AUTH_TAG_LENGTH = 16;
 
 export function encrypt(text: string): string {
   const ENCRYPTION_KEY = getEncryptionKey();
-  const key = Buffer.concat([Buffer.from(ENCRYPTION_KEY)], 32);
+  const key = Buffer.from(ENCRYPTION_KEY, 'utf-8');
   const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-  let encrypted = cipher.update(text);
-  encrypted = Buffer.concat([encrypted, cipher.final()]);
-  return iv.toString('hex') + ':' + encrypted.toString('hex');
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  
+  let encrypted = cipher.update(text, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  
+  const authTag = cipher.getAuthTag();
+  
+  return iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted;
 }
 
 export function decrypt(text: string): string {
-  if (!text || !text.includes(':')) {
+  if (!text || text.split(':').length !== 3) {
     throw new Error('Invalid encrypted text format');
   }
+  
   const ENCRYPTION_KEY = getEncryptionKey();
   const parts = text.split(':');
-  const iv = Buffer.from(parts.shift() || '', 'hex');
-  const encryptedText = Buffer.from(parts.join(':'), 'hex');
-  const key = Buffer.concat([Buffer.from(ENCRYPTION_KEY)], 32);
-  const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-  let decrypted = decipher.update(encryptedText);
-  decrypted = Buffer.concat([decrypted, decipher.final()]);
-  return decrypted.toString();
+  const iv = Buffer.from(parts[0], 'hex');
+  const authTag = Buffer.from(parts[1], 'hex');
+  const encryptedText = parts[2];
+  
+  const key = Buffer.from(ENCRYPTION_KEY, 'utf-8');
+  
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(authTag);
+  
+  let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  
+  return decrypted;
 }

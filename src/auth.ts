@@ -19,12 +19,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.password) return null;
         
-        const devEmail = process.env.DEV_EMAIL || "dev@mili.id";
-        const devPassword = process.env.DEV_PASSWORD || "dev123";
-        const mgrEmail = process.env.MGR_EMAIL || "mail@miliciptakarya.com";
+        const devEmail = process.env.DEV_EMAIL;
+        const devPassword = process.env.DEV_PASSWORD;
+        const mgrEmail = process.env.MGR_EMAIL;
         
         // Developer Role
-        if (credentials.email === devEmail && credentials.password === devPassword) {
+        if (devEmail && devPassword && credentials.email === devEmail && credentials.password === devPassword) {
           return {
             id: "usr-dev-001",
             name: "Mili Developer",
@@ -34,11 +34,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
         
         // Manajemen Role (via PIN or traditional Email/Password)
-        const mgrPin = process.env.MGR_PIN || "83708370";
-        const isPinMatch = credentials.password === mgrPin;
+        const mgrPin = process.env.MGR_PIN;
+        const isPinMatch = Boolean(mgrPin) && credentials.password === mgrPin;
         
-        const mgrPassword = process.env.MGR_PASSWORD || "manager123";
-        const isCredentialsMatch = credentials.email === mgrEmail && credentials.password === mgrPassword;
+        const mgrPassword = process.env.MGR_PASSWORD;
+        const isCredentialsMatch = Boolean(mgrEmail) && Boolean(mgrPassword) && credentials.email === mgrEmail && credentials.password === mgrPassword;
 
         if (isPinMatch || isCredentialsMatch) {
           return {

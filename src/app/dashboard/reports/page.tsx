@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
+import { toast } from "sonner";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ManagementDashboard } from "@/components/reports/ManagementDashboard";
 import { DeveloperDashboard } from "@/components/reports/DeveloperDashboard";
@@ -88,15 +89,15 @@ export default function ReportsPage() {
       });
       const data = await res.json();
       if (data.success) {
-        alert(data.message);
+        toast.success(data.message);
         setIsSubmitted(submit);
         await fetchReportData(); // Reload stats and commits
       } else {
-        alert("Gagal menyimpan laporan: " + data.error);
+        toast.error("Gagal menyimpan laporan: " + data.error);
       }
     } catch (err) {
       console.error(err);
-      alert("Gagal menghubungi server untuk menyimpan laporan.");
+      toast.error("Gagal menghubungi server untuk menyimpan laporan.");
     } finally {
       setIsSaving(false);
     }
@@ -107,7 +108,7 @@ export default function ReportsPage() {
     setIsExporting(type);
     setTimeout(() => {
       setIsExporting("none");
-      alert(
+      toast.success(
         type === "pdf"
           ? "Sukses mengekspor Laporan Kerja ke PDF!"
           : type === "excel"

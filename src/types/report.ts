@@ -12,7 +12,7 @@ export interface PRItem {
   number: number;
   title: string;
   repo: string;
-  state: "merged" | "open" | "closed" | string;
+  state: "merged" | "open" | "closed";
 }
 
 export interface EpicItem {

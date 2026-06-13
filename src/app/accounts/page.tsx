@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { toast } from "sonner";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 
 interface GitHubAccount {
@@ -28,6 +29,14 @@ export default function AccountsPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowModal(false);
+    };
+    if (showModal) window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [showModal]);
 
   const [isConnecting, setIsConnecting] = useState(false);
   
@@ -59,7 +68,7 @@ export default function AccountsPage() {
   const toggleVisibility = async (repoId: string, currentVisibility: boolean) => {
     try {
       // Optimistic update
-      setRepos(repos.map(r => r.id === repoId ? { ...r, is_visible: !currentVisibility } : r));
+      setRepos(prev => prev.map(r => r.id === repoId ? { ...r, is_visible: !currentVisibility } : r));
       
       const res = await fetch("/api/repos/toggle", {
         method: "POST",
@@ -69,13 +78,13 @@ export default function AccountsPage() {
       const data = await res.json();
       if (!data.success) {
         // Revert on failure
-        setRepos(repos.map(r => r.id === repoId ? { ...r, is_visible: currentVisibility } : r));
-        alert("Gagal mengubah visibilitas: " + data.error);
+        setRepos(prev => prev.map(r => r.id === repoId ? { ...r, is_visible: currentVisibility } : r));
+        toast.error("Gagal mengubah visibilitas: " + data.error);
       }
     } catch (err) {
       console.error(err);
       // Revert on failure
-      setRepos(repos.map(r => r.id === repoId ? { ...r, is_visible: currentVisibility } : r));
+      setRepos(prev => prev.map(r => r.id === repoId ? { ...r, is_visible: currentVisibility } : r));
     }
   };
 
@@ -88,13 +97,13 @@ export default function AccountsPage() {
       });
       const data = await res.json();
       if (data.success) {
-        alert(`Sinkronisasi berhasil! ${data.commitsCount} commit baru ditemukan.`);
+        toast.success(`Sinkronisasi berhasil! ${data.commitsCount} commit baru ditemukan.`);
       } else {
-        alert("Sinkronisasi gagal: " + data.error);
+        toast.error("Sinkronisasi gagal: " + data.error);
       }
     } catch (err) {
       console.error(err);
-      alert("Terjadi kesalahan saat sinkronisasi.");
+      toast.error("Terjadi kesalahan saat sinkronisasi.");
     }
   };
 
@@ -115,11 +124,11 @@ export default function AccountsPage() {
         setShowModal(false);
         await fetchUserData(); // Reload list
       } else {
-        alert("Gagal menghubungkan: " + data.error);
+        toast.error("Gagal menghubungkan: " + data.error);
       }
     } catch (err) {
       console.error(err);
-      alert("Gagal menghubungkan ke server.");
+      toast.error("Gagal menghubungkan ke server.");
     } finally {
       setIsConnecting(false);
     }
@@ -291,10 +300,15 @@ export default function AccountsPage() {
 
       {/* Connection Modal */}
       {mounted && showModal && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-title"
+        >
           <div className="bento-card bg-[var(--color-bg)] w-full max-w-md border border-[var(--color-border)] shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-[var(--color-border)] flex items-center justify-between">
-              <h3 className="font-mono font-bold text-lg">Hubungkan Akun GitHub</h3>
+              <h3 id="modal-title" className="font-mono font-bold text-lg">Hubungkan Akun GitHub</h3>
               <button onClick={() => setShowModal(false)} className="text-[var(--color-text-secondary)] hover:text-red-500 transition-colors">
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
