@@ -249,13 +249,22 @@ export async function GET(request: Request) {
         };
       });
 
-      // Calculate Epic repositories progress
+      // Calculate Epic repositories progress, sorted by most recent commit first
       const epics = repos.map(repo => {
         const repoIssues = issuesList.filter(i => i.repo_id === repo.repo_id);
         const repoCommits = commitsList.filter(c => c.repo_id === repo.repo_id);
         const total = repoIssues.length;
         const closed = repoIssues.filter(i => i.state === 'closed').length;
         const progress = total > 0 ? Math.round((closed / total) * 100) : (repoCommits.length > 0 ? 100 : 0);
+
+        // Find the latest commit date for sorting
+        const latestCommitDate = repoCommits.length > 0
+          ? repoCommits.reduce((latest, c) => {
+              const d = new Date(c.commit_date).getTime();
+              return d > latest ? d : latest;
+            }, 0)
+          : 0;
+
         return {
           name: repo.repo_name.split('/')[1],
           owner: repo.repo_name.split('/')[0],
@@ -263,17 +272,20 @@ export async function GET(request: Request) {
           progress,
           status: progress === 100 ? 'Completed' : 'In Progress',
           difficulty: repo.language === 'TypeScript' || repo.language === 'JavaScript' ? 4 : 3,
-          commits: repoCommits.map(c => ({
-            sha: c.sha,
-            msg: c.message,
-            repo: repo.repo_name,
-            additions: c.additions,
-            deletions: c.deletions,
-            date: c.commit_date,
-            author: c.author_username
-          }))
+          latestCommitDate,
+          commits: repoCommits
+            .sort((a, b) => new Date(b.commit_date).getTime() - new Date(a.commit_date).getTime())
+            .map(c => ({
+              sha: c.sha,
+              msg: c.message,
+              repo: repo.repo_name,
+              additions: c.additions,
+              deletions: c.deletions,
+              date: c.commit_date,
+              author: c.author_username
+            }))
         };
-      });
+      }).sort((a, b) => b.latestCommitDate - a.latestCommitDate);
 
       const db = supabaseAdmin;
       const userIds = [...new Set(reports.map(r => r.user_id))];
