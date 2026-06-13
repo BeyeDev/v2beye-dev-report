@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -22,6 +23,12 @@ export default function AccountsPage() {
   
   const [showModal, setShowModal] = useState(false);
   const [githubToken, setGithubToken] = useState("");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const [isConnecting, setIsConnecting] = useState(false);
   
   const [accounts, setAccounts] = useState<GitHubAccount[]>([]);
@@ -283,7 +290,7 @@ export default function AccountsPage() {
       )}
 
       {/* Connection Modal */}
-      {showModal && (
+      {mounted && showModal && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bento-card bg-[var(--color-bg)] w-full max-w-md border border-[var(--color-border)] shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-[var(--color-border)] flex items-center justify-between">
@@ -338,7 +345,8 @@ export default function AccountsPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </DashboardLayout>
   );

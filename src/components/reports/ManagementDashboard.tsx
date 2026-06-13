@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { EpicItem, TaskItem, DevReportItem } from "@/types/report";
 import { StarRating } from "./StarRating";
 
@@ -19,6 +20,11 @@ interface ManagementDashboardProps {
 export function ManagementDashboard({ managementData }: ManagementDashboardProps) {
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
   const [selectedEpicKey, setSelectedEpicKey] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const activeEpic = managementData?.epics?.find(e => `${e.owner}/${e.name}` === selectedEpicKey);
 
@@ -137,82 +143,6 @@ export function ManagementDashboard({ managementData }: ManagementDashboardProps
                 </div>
               )}
             </div>
-
-            {/* Detailed Commits List Modal / Bottom Sheet */}
-            {activeEpic && (
-              <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-                {/* Backdrop click to close */}
-                <div className="absolute inset-0 cursor-pointer" onClick={() => setSelectedEpicKey(null)} />
-                
-                {/* Modal content */}
-                <div className="relative w-full sm:max-w-2xl bg-[var(--color-bg)] border-t sm:border border-[var(--color-border)] rounded-t-3xl sm:rounded-2xl shadow-2xl p-6 flex flex-col gap-4 max-h-[85vh] sm:max-h-[80vh] overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-300">
-                  
-                  {/* Mobile handle indicator */}
-                  <div className="w-12 h-1 bg-[var(--color-border)] rounded-full mx-auto mb-1 shrink-0 sm:hidden" />
-                  
-                  {/* Header */}
-                  <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3 shrink-0">
-                    <h4 className="text-xs sm:text-sm font-mono font-bold text-[var(--color-text-primary)] flex items-center gap-1.5">
-                      <span className="w-1.5 h-3 rounded bg-[var(--color-accent-info)]/80"></span>
-                      {activeEpic.owner}/{activeEpic.name}
-                    </h4>
-                    <div className="flex items-center gap-3">
-                      <span className="text-[10px] font-mono text-[var(--color-text-secondary)] bg-[var(--color-border)]/50 px-2 py-0.5 rounded-md">
-                        {activeEpic.commits?.length || 0} commits
-                      </span>
-                      <button 
-                        onClick={() => setSelectedEpicKey(null)}
-                        className="text-xs text-[var(--color-text-secondary)] hover:text-red-500 transition-colors font-mono cursor-pointer flex items-center gap-1 focus:outline-none"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        Tutup
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Commits List Body */}
-                  <div className="flex flex-col gap-3.5 overflow-y-auto pr-1">
-                    {activeEpic.commits && activeEpic.commits.length > 0 ? (
-                      activeEpic.commits.map((commit, cIdx) => (
-                        <div key={cIdx} className="flex items-start justify-between gap-4 pl-3 border-l-2 border-[var(--color-border)] hover:border-[var(--color-accent-info)] transition-colors py-0.5">
-                          <div className="flex flex-col min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-[10px] font-mono font-bold text-[var(--color-accent-info)] bg-[var(--color-accent-info)]/10 px-1.5 py-0.2 rounded">
-                                {commit.sha.substring(0, 8)}
-                              </span>
-                              <span className="text-[9px] text-[var(--color-text-secondary)] font-mono">
-                                {commit.date 
-                                  ? new Date(commit.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) + ' ' + new Date(commit.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
-                                  : ''
-                                }
-                              </span>
-                              {commit.author && (
-                                <span className="text-[9px] text-[var(--color-accent-success)] bg-emerald-500/10 px-1.5 py-0.2 rounded-full font-mono font-semibold">
-                                  @{commit.author}
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-xs font-semibold mt-1 leading-relaxed text-[var(--color-text-primary)]">
-                              {commit.msg}
-                            </span>
-                          </div>
-                          <div className="flex gap-1.5 text-[9px] font-mono shrink-0">
-                            <span className="text-[var(--color-accent-success)] bg-emerald-500/10 px-1.5 py-0.5 rounded">+{commit.additions}</span>
-                            <span className="text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded">-{commit.deletions}</span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-12 text-[var(--color-text-secondary)] font-mono text-xs italic">
-                        Belum ada aktivitas commit untuk repositori ini dalam periode terpilih.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Developer Reports Feed */}
@@ -419,6 +349,83 @@ export function ManagementDashboard({ managementData }: ManagementDashboardProps
           </div>
         </div>
       </div>
+
+      {/* Detailed Commits List Modal / Bottom Sheet */}
+      {mounted && activeEpic && createPortal(
+        <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          {/* Backdrop click to close */}
+          <div className="absolute inset-0 cursor-pointer" onClick={() => setSelectedEpicKey(null)} />
+          
+          {/* Modal content */}
+          <div className="relative w-full sm:max-w-2xl bg-[var(--color-bg)] border-t sm:border border-[var(--color-border)] rounded-t-3xl sm:rounded-2xl shadow-2xl p-6 flex flex-col gap-4 max-h-[85vh] sm:max-h-[80vh] overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-300">
+            
+            {/* Mobile handle indicator */}
+            <div className="w-12 h-1 bg-[var(--color-border)] rounded-full mx-auto mb-1 shrink-0 sm:hidden" />
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3 shrink-0">
+              <h4 className="text-xs sm:text-sm font-mono font-bold text-[var(--color-text-primary)] flex items-center gap-1.5">
+                <span className="w-1.5 h-3 rounded bg-[var(--color-accent-info)]/80"></span>
+                {activeEpic.owner}/{activeEpic.name}
+              </h4>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-mono text-[var(--color-text-secondary)] bg-[var(--color-border)]/50 px-2 py-0.5 rounded-md">
+                  {activeEpic.commits?.length || 0} commits
+                </span>
+                <button 
+                  onClick={() => setSelectedEpicKey(null)}
+                  className="text-xs text-[var(--color-text-secondary)] hover:text-red-500 transition-colors font-mono cursor-pointer flex items-center gap-1 focus:outline-none"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Tutup
+                </button>
+              </div>
+            </div>
+
+            {/* Commits List Body */}
+            <div className="flex flex-col gap-3.5 overflow-y-auto pr-1">
+              {activeEpic.commits && activeEpic.commits.length > 0 ? (
+                activeEpic.commits.map((commit, cIdx) => (
+                  <div key={cIdx} className="flex items-start justify-between gap-4 pl-3 border-l-2 border-[var(--color-border)] hover:border-[var(--color-accent-info)] transition-colors py-0.5">
+                    <div className="flex flex-col min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-mono font-bold text-[var(--color-accent-info)] bg-[var(--color-accent-info)]/10 px-1.5 py-0.2 rounded">
+                          {commit.sha.substring(0, 8)}
+                        </span>
+                        <span className="text-[9px] text-[var(--color-text-secondary)] font-mono">
+                          {commit.date 
+                            ? new Date(commit.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) + ' ' + new Date(commit.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+                            : ''
+                          }
+                        </span>
+                        {commit.author && (
+                          <span className="text-[9px] text-[var(--color-accent-success)] bg-emerald-500/10 px-1.5 py-0.2 rounded-full font-mono font-semibold">
+                            @{commit.author}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs font-semibold mt-1 leading-relaxed text-[var(--color-text-primary)]">
+                        {commit.msg}
+                      </span>
+                    </div>
+                    <div className="flex gap-1.5 text-[9px] font-mono shrink-0">
+                      <span className="text-[var(--color-accent-success)] bg-emerald-500/10 px-1.5 py-0.5 rounded">+{commit.additions}</span>
+                      <span className="text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded">-{commit.deletions}</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-12 text-[var(--color-text-secondary)] font-mono text-xs italic">
+                  Belum ada aktivitas commit untuk repositori ini dalam periode terpilih.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

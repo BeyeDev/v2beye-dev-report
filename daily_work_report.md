@@ -31,7 +31,9 @@ Dokumen ini mencakup rekapitulasi detail dari seluruh aktivitas perbaikan bug, i
 - **Interaksi Klik Galeri Repositori Aktif (GitHub Connected Repos):** 
   - Manajer dapat mengklik kartu repositori aktif untuk melihat riwayat commit spesifik repositori tersebut.
   - Kartu yang dipilih akan menerima sorotan visual yang jelas (border biru aksen, background tinted, shadow-md, dan scale-up hover).
-- **Responsive Modal & Mobile Bottom Sheet Overlay:**
+- **Responsive Modal & Mobile Bottom Sheet Overlay (React Portals):**
+  - **Masalah:** Terkadang posisi modal detail repositori berubah atau tidak selalu terpusat (tidak center) karena modal dirender di dalam pohon komponen yang memiliki kontainer bertransformasi (`transform`/`scale` dari Bento grid). Hal ini membuat elemen `fixed` diposisikan relatif terhadap kontainer tersebut dan bergeser saat halaman digulirkan.
+  - **Solusi:** Membungkus modal detail repositori di `ManagementDashboard.tsx` dan modal koneksi akun di `accounts/page.tsx` menggunakan **React Portals** (`createPortal`) untuk dirender langsung di bawah `document.body`. Ini menjamin modal selalu berada di luar elemen bertransformasi, sehingga posisi modal selalu terpusat (center) sempurna di desktop dan berperilaku sebagai Bottom Sheet yang stabil di mobile.
   - **Di Mobile:** Untuk menghindari keharusan menggulung halaman (*scrolling*) ke bagian paling bawah di layar kecil, detail commit repositori yang diklik kini muncul sebagai **Bottom Sheet** yang meluncur naik (*slide up*) dari bawah layar (seperti aplikasi native iOS/Android).
   - **Di Desktop:** Tampil sebagai **Centered Modal Dialog** yang elegan dengan efek latar belakang blur (*glassmorphism backdrop*).
   - Dilengkapi tombol penutup yang ergonomis dan fungsionalitas klik area luar (*backdrop click*) untuk menutup panel detail secara instan.

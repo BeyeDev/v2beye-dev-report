@@ -5,6 +5,7 @@ export interface CommitItem {
   additions: number;
   deletions: number;
   date?: string;
+  author?: string;
 }
 
 export interface PRItem {

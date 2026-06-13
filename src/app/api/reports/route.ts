@@ -269,9 +269,10 @@ export async function GET(request: Request) {
         };
       });
 
+      const db = supabaseAdmin;
       const reportsList = await Promise.all(reports.map(async (r) => {
         // Find developer's GitHub usernames and repo IDs
-        const { data: accounts } = await supabaseAdmin
+        const { data: accounts } = await db
           .from('github_accounts')
           .select('account_id, github_username')
           .eq('user_id', r.user_id);
@@ -282,7 +283,7 @@ export async function GET(request: Request) {
         let repoIds: string[] = [];
         let repoMap: Record<string, string> = {};
         if (accountIds.length > 0) {
-          const { data: repos } = await supabaseAdmin
+          const { data: repos } = await db
             .from('monitored_repositories')
             .select('repo_id, repo_name')
             .in('account_id', accountIds);
@@ -306,7 +307,7 @@ export async function GET(request: Request) {
             prsStartIso = d.toISOString();
           }
 
-          const { data: commits } = await supabaseAdmin
+          const { data: commits } = await db
             .from('commits')
             .select('*')
             .in('repo_id', repoIds)
@@ -324,7 +325,7 @@ export async function GET(request: Request) {
             date: c.commit_date
           })) || [];
 
-          const { data: prs } = await supabaseAdmin
+          const { data: prs } = await db
             .from('pull_requests')
             .select('*')
             .in('repo_id', repoIds)
