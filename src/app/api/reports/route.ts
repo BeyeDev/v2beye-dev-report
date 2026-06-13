@@ -5,7 +5,7 @@ import { decrypt } from '@/lib/crypto';
 
 import { getOrCreateUser } from '@/lib/user';
 
-async function autoSyncRepoIfNeeded(repo: any) {
+export async function autoSyncRepoIfNeeded(repo: any) {
   if (!supabaseAdmin) return;
   const FIVE_MINUTES_MS = 5 * 60 * 1000;
   const lastUpdated = repo.updated_at ? new Date(repo.updated_at).getTime() : 0;
@@ -24,20 +24,43 @@ async function autoSyncRepoIfNeeded(repo: any) {
   try {
     const token = decrypt(githubAccount.encrypted_access_token);
     const repoName = repo.repo_name;
+    const headers = {
+      'Authorization': `token ${token}`,
+      'User-Agent': 'MCK-DevReport-Sync'
+    };
+
+    // 0. Fetch repo metadata to get default_branch
+    let defaultBranch = 'main';
+    const repoMetaResponse = await fetch(`https://api.github.com/repos/${repoName}`, { headers });
+    if (repoMetaResponse.ok) {
+      const repoMeta = await repoMetaResponse.json();
+      defaultBranch = repoMeta.default_branch || 'main';
+    }
 
     // 1. Fetch latest commits from GitHub
-    const commitsResponse = await fetch(`https://api.github.com/repos/${repoName}/commits?per_page=30`, {
-      headers: {
-        'Authorization': `token ${token}`,
-        'User-Agent': 'MCK-DevReport-Sync'
-      }
-    });
+    const commitsResponse = await fetch(`https://api.github.com/repos/${repoName}/commits?per_page=30`, { headers });
 
     if (commitsResponse.ok) {
       const commitsData = await commitsResponse.json();
       if (Array.isArray(commitsData)) {
+        // Fetch individual stats for the 5 newest commits to get real additions/deletions
+        const statsMap: Record<string, { additions: number; deletions: number }> = {};
+        const commitsToEnrich = commitsData.slice(0, 5);
+        await Promise.all(commitsToEnrich.map(async (c) => {
+          try {
+            const detailRes = await fetch(`https://api.github.com/repos/${repoName}/commits/${c.sha}`, { headers });
+            if (detailRes.ok) {
+              const detail = await detailRes.json();
+              if (detail.stats) {
+                statsMap[c.sha] = { additions: detail.stats.additions || 0, deletions: detail.stats.deletions || 0 };
+              }
+            }
+          } catch { /* skip individual fetch errors */ }
+        }));
+
         for (const c of commitsData) {
           const authorName = c.author?.login || c.commit.author?.name || 'Unknown';
+          const stats = statsMap[c.sha] || { additions: 0, deletions: 0 };
           await supabaseAdmin
             .from('commits')
             .upsert([{
@@ -45,22 +68,17 @@ async function autoSyncRepoIfNeeded(repo: any) {
               sha: c.sha,
               message: c.commit.message.split('\n')[0],
               author_username: authorName,
-              additions: c.stats?.additions || 0,
-              deletions: c.stats?.deletions || 0,
+              additions: stats.additions,
+              deletions: stats.deletions,
               commit_date: c.commit.author.date,
-              branch_name: 'main'
+              branch_name: defaultBranch
             }], { onConflict: 'sha' });
         }
       }
     }
 
     // 2. Fetch latest PRs from GitHub
-    const prsResponse = await fetch(`https://api.github.com/repos/${repoName}/pulls?state=all&per_page=15`, {
-      headers: {
-        'Authorization': `token ${token}`,
-        'User-Agent': 'MCK-DevReport-Sync'
-      }
-    });
+    const prsResponse = await fetch(`https://api.github.com/repos/${repoName}/pulls?state=all&per_page=15`, { headers });
 
     if (prsResponse.ok) {
       const prsData = await prsResponse.json();
@@ -77,6 +95,31 @@ async function autoSyncRepoIfNeeded(repo: any) {
               created_at: p.created_at,
               merged_at: p.merged_at,
               closed_at: p.closed_at
+            }], { onConflict: 'repo_id,number' });
+        }
+      }
+    }
+
+    // 2.5 Fetch latest Issues from GitHub
+    const issuesResponse = await fetch(`https://api.github.com/repos/${repoName}/issues?state=all&per_page=15`, { headers });
+
+    if (issuesResponse.ok) {
+      const issuesData = await issuesResponse.json();
+      if (Array.isArray(issuesData)) {
+        for (const i of issuesData) {
+          // GitHub API returns PRs as issues too, skip if it's a PR
+          if (i.pull_request) continue;
+          
+          await supabaseAdmin
+            .from('issues')
+            .upsert([{
+              repo_id: repo.repo_id,
+              number: i.number,
+              title: i.title,
+              state: i.state,
+              assignee_username: i.assignee?.login || null,
+              created_at: i.created_at,
+              closed_at: i.closed_at
             }], { onConflict: 'repo_id,number' });
         }
       }

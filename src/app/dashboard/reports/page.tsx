@@ -7,6 +7,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ManagementDashboard } from "@/components/reports/ManagementDashboard";
 import { DeveloperDashboard } from "@/components/reports/DeveloperDashboard";
 import { CommitItem, PRItem, EpicItem, TaskItem, DevReportItem } from "@/types/report";
+import { supabase } from "@/lib/supabase";
 
 export default function ReportsPage() {
   const { data: session } = useSession();
@@ -70,12 +71,39 @@ export default function ReportsPage() {
     }
   }, [session, reportType]);
 
-  // Initial fetch + auto-refresh every 60s for realtime-like experience
+  // Debounce ref untuk Supabase Realtime agar tidak flood API saat batch upsert
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const debouncedFetch = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchReportData(true), 2000);
+  }, [fetchReportData]);
+
+  // Initial fetch + Supabase Realtime subscription
   useEffect(() => {
     fetchReportData();
-    const interval = setInterval(() => fetchReportData(true), 60_000);
-    return () => clearInterval(interval);
-  }, [fetchReportData]);
+
+    // Setup Supabase Realtime subscriptions with debounce
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'commits' }, () => {
+        debouncedFetch();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pull_requests' }, () => {
+        debouncedFetch();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'issues' }, () => {
+        debouncedFetch();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_reports' }, () => {
+        debouncedFetch();
+      })
+      .subscribe();
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      supabase.removeChannel(channel);
+    };
+  }, [fetchReportData, debouncedFetch]);
 
   const handleSaveReport = async (submit: boolean) => {
     setIsSaving(true);
@@ -106,19 +134,58 @@ export default function ReportsPage() {
     }
   };
 
-  // Trigger export simulation
+  // Handle real export functionality
   const handleExport = (type: "pdf" | "excel" | "share") => {
     setIsExporting(type);
+    
+    if (type === "pdf") {
+      setTimeout(() => {
+        setIsExporting("none");
+        window.print();
+        toast.success("Mempersiapkan dokumen PDF.");
+      }, 500);
+      return;
+    }
+    
+    if (type === "excel") {
+      setTimeout(() => {
+        let csv = "SHA,Pesan Commit,Repositori,Tanggal,Additions,Deletions\n";
+        
+        // Deteksi role: gunakan data yang tepat
+        if (isManager && managementData) {
+          // Manager: kumpulkan commits dari semua epics + reports
+          const allCommits = managementData.epics.flatMap(e => e.commits || []);
+          allCommits.forEach(c => {
+            csv += `"${c.sha}","${c.msg.replace(/"/g, '""')}","${c.repo}","${c.date || ''}","${c.additions}","${c.deletions}"\n`;
+          });
+        } else {
+          // Developer: gunakan state commits
+          commits.forEach(c => {
+            csv += `"${c.sha}","${c.msg.replace(/"/g, '""')}","${c.repo}","${c.date || ''}","${c.additions}","${c.deletions}"\n`;
+          });
+        }
+        
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Laporan_Kerja_${reportType}_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setIsExporting("none");
+        toast.success("Berhasil mengunduh file Excel (CSV)!");
+      }, 500);
+      return;
+    }
+    
+    // Share link
     setTimeout(() => {
+      navigator.clipboard.writeText(window.location.href);
       setIsExporting("none");
-      toast.success(
-        type === "pdf"
-          ? "Sukses mengekspor Laporan Kerja ke PDF!"
-          : type === "excel"
-          ? "Sukses mengekspor Laporan Kerja ke file Excel!"
-          : "Link laporan berhasil disalin ke clipboard! Siap dibagikan."
-      );
-    }, 2000);
+      toast.success("Link laporan berhasil disalin ke clipboard!");
+    }, 500);
   };
 
   // Judul berdasarkan tipe laporan

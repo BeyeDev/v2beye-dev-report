@@ -6,11 +6,13 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
 
   const isApiAuthRoute = pathname.startsWith("/api/auth");
+  const isWebhookRoute = pathname.startsWith("/api/webhooks");
+  const isCronRoute = pathname.startsWith("/api/cron");
   const isPublicRoute = pathname === "/";
   const isApiRoute = pathname.startsWith("/api");
 
-  // Allow access to auth API routes
-  if (isApiAuthRoute) return;
+  // Allow access to auth, webhook, and cron API routes (no session needed)
+  if (isApiAuthRoute || isWebhookRoute || isCronRoute) return;
 
   // Prevent access to protected API routes without login
   if (isApiRoute && !isLoggedIn) {

@@ -61,33 +61,44 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
     const repoName = repo.repo_name; // format: owner/name
+    const headers = {
+      'Authorization': `token ${token}`,
+      'User-Agent': 'MCK-DevReport-Sync'
+    };
+
+    // 1.5 Fetch repo metadata to get default_branch
+    let defaultBranch = 'main';
+    const repoMetaResponse = await fetch(`https://api.github.com/repos/${repoName}`, { headers });
+    if (repoMetaResponse.ok) {
+      const repoMeta = await repoMetaResponse.json();
+      defaultBranch = repoMeta.default_branch || 'main';
+    }
 
     // 2. Fetch commits from GitHub with pagination (max 5 pages = 500 commits per sync to avoid rate limits)
     let commitsCount = 0;
     let commitsPage = 1;
     let hasMoreCommits = true;
+    let allCommitShas: string[] = [];
 
     while (hasMoreCommits && commitsPage <= 5) {
-      const commitsResponse = await fetch(`https://api.github.com/repos/${repoName}/commits?per_page=100&page=${commitsPage}`, {
-        headers: {
-          'Authorization': `token ${token}`,
-          'User-Agent': 'MCK-DevReport-Sync'
-        }
-      });
+      const commitsResponse = await fetch(`https://api.github.com/repos/${repoName}/commits?per_page=100&page=${commitsPage}`, { headers });
 
       if (commitsResponse.ok) {
         const commitsData = await commitsResponse.json();
         if (Array.isArray(commitsData) && commitsData.length > 0) {
-          // Batch Upsert commits into database
+          // Track SHAs for stats enrichment
+          commitsData.forEach((c: any) => allCommitShas.push(c.sha));
+
+          // Batch Upsert commits into database (initially with 0 additions/deletions)
           const commitUpserts = commitsData.map((c: any) => ({
             repo_id: repo_id,
             sha: c.sha,
             message: c.commit.message.split('\n')[0],
             author_username: c.author?.login || c.commit.author?.name || 'Unknown',
-            additions: c.stats?.additions || 0,
-            deletions: c.stats?.deletions || 0,
+            additions: 0,
+            deletions: 0,
             commit_date: c.commit.author.date,
-            branch_name: 'main'
+            branch_name: defaultBranch
           }));
           const { error: commitErr } = await supabaseAdmin
             .from('commits')
@@ -104,17 +115,31 @@ export async function POST(request: Request) {
       }
     }
 
+    // 2.5 Enrich the 10 newest commits with real additions/deletions stats
+    const topShas = allCommitShas.slice(0, 10);
+    if (topShas.length > 0) {
+      await Promise.all(topShas.map(async (sha) => {
+        try {
+          const detailRes = await fetch(`https://api.github.com/repos/${repoName}/commits/${sha}`, { headers });
+          if (detailRes.ok) {
+            const detail = await detailRes.json();
+            if (detail.stats) {
+              await supabaseAdmin!
+                .from('commits')
+                .update({ additions: detail.stats.additions || 0, deletions: detail.stats.deletions || 0 })
+                .eq('sha', sha);
+            }
+          }
+        } catch { /* skip individual fetch errors */ }
+      }));
+    }
+
     // 3. Fetch PRs from GitHub with pagination (max 3 pages = 300 PRs per sync)
     let prsPage = 1;
     let hasMorePrs = true;
 
     while (hasMorePrs && prsPage <= 3) {
-      const prsResponse = await fetch(`https://api.github.com/repos/${repoName}/pulls?state=all&per_page=100&page=${prsPage}`, {
-        headers: {
-          'Authorization': `token ${token}`,
-          'User-Agent': 'MCK-DevReport-Sync'
-        }
-      });
+      const prsResponse = await fetch(`https://api.github.com/repos/${repoName}/pulls?state=all&per_page=100&page=${prsPage}`, { headers });
 
       if (prsResponse.ok) {
         const prsData = await prsResponse.json();
@@ -141,6 +166,45 @@ export async function POST(request: Request) {
       } else {
         hasMorePrs = false;
         console.error(`Failed to fetch PRs page ${prsPage}`);
+      }
+    }
+
+    // 3.5 Fetch Issues from GitHub with pagination (max 3 pages = 300 Issues per sync)
+    let issuesPage = 1;
+    let hasMoreIssues = true;
+
+    while (hasMoreIssues && issuesPage <= 3) {
+      const issuesResponse = await fetch(`https://api.github.com/repos/${repoName}/issues?state=all&per_page=100&page=${issuesPage}`, { headers });
+
+      if (issuesResponse.ok) {
+        const issuesData = await issuesResponse.json();
+        if (Array.isArray(issuesData) && issuesData.length > 0) {
+          // Batch Upsert Issues into database
+          const issueUpserts = issuesData
+            .filter((i: any) => !i.pull_request) // filter out PRs
+            .map((i: any) => ({
+              repo_id: repo_id,
+              number: i.number,
+              title: i.title,
+              state: i.state,
+              assignee_username: i.assignee?.login || null,
+              created_at: i.created_at,
+              closed_at: i.closed_at
+            }));
+            
+          if (issueUpserts.length > 0) {
+            await supabaseAdmin
+              .from('issues')
+              .upsert(issueUpserts, { onConflict: 'repo_id,number' });
+          }
+          if (issuesData.length < 100) hasMoreIssues = false;
+          else issuesPage++;
+        } else {
+          hasMoreIssues = false;
+        }
+      } else {
+        hasMoreIssues = false;
+        console.error(`Failed to fetch Issues page ${issuesPage}`);
       }
     }
 
