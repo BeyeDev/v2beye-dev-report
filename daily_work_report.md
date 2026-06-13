@@ -38,6 +38,14 @@ Dokumen ini mencakup rekapitulasi detail dari seluruh aktivitas perbaikan bug, i
   - **Di Desktop:** Tampil sebagai **Centered Modal Dialog** yang elegan dengan efek latar belakang blur (*glassmorphism backdrop*).
   - Dilengkapi tombol penutup yang ergonomis dan fungsionalitas klik area luar (*backdrop click*) untuk menutup panel detail secara instan.
 
+### 5. Penyederhanaan Login Manajemen (Sistem PIN Akses Cepat)
+- **Implementasi Login PIN Akses ([src/auth.ts](file:///D:/DEV/2026/V2%20Beye%20Dev%20Report/src/auth.ts) & [src/app/page.tsx](file:///D:/DEV/2026/V2%20Beye%20Dev%20Report/src/app/page.tsx)):**
+  - **Masalah:** Akun manajemen awalnya dilindungi oleh `MGR_EMAIL` ("mail@miliciptakarya.com") dan `MGR_PASSWORD` ("Militan200$") yang panjang dan menyulitkan proses pengetikan berulang bagi direksi/manajer.
+  - **Solusi:**
+    - Menghapus kewajiban `MGR_PASSWORD` dan mengimplementasikan `MGR_PIN` ("83708370") di berkas `.env.local`.
+    - Memperbarui halaman masuk (*Login Page*) dengan antarmuka bertab: Tab **Developer** (Email & Password/Passkey) dan Tab **Manajemen** (hanya meminta PIN Akses dengan input yang tersembunyi/sensor dan keyboard numerik).
+    - Memperbarui NextAuth `authorize` handler untuk memvalidasi `credentials.password` terhadap PIN yang dikonfigurasi. Ketika PIN cocok, sistem otomatis mengizinkan masuk dengan mengembalikan surel instansi (`mail@miliciptakarya.com`) agar sinkron dengan baris pengguna di tabel `master_user` Supabase.
+
 ---
 
 ## Tanggal: 12 Juni 2026

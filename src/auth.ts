@@ -17,12 +17,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Passkey", type: "password" }
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!credentials?.password) return null;
         
         const devEmail = process.env.DEV_EMAIL || "dev@mili.id";
         const devPassword = process.env.DEV_PASSWORD || "dev123";
-        const mgrEmail = process.env.MGR_EMAIL || "manager@mili.id";
-        const mgrPassword = process.env.MGR_PASSWORD || "manager123";
+        const mgrEmail = process.env.MGR_EMAIL || "mail@miliciptakarya.com";
         
         // Developer Role
         if (credentials.email === devEmail && credentials.password === devPassword) {
@@ -34,8 +33,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           };
         }
         
-        // Manajemen Role
-        if (credentials.email === mgrEmail && credentials.password === mgrPassword) {
+        // Manajemen Role (via PIN or traditional Email/Password)
+        const mgrPin = process.env.MGR_PIN || "83708370";
+        const isPinMatch = credentials.password === mgrPin;
+        
+        const mgrPassword = process.env.MGR_PASSWORD || "manager123";
+        const isCredentialsMatch = credentials.email === mgrEmail && credentials.password === mgrPassword;
+
+        if (isPinMatch || isCredentialsMatch) {
           return {
             id: "usr-mgr-001",
             name: "Mili Manajemen",

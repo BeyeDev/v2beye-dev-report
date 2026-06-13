@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 
 export default function Home() {
   const router = useRouter();
+  const [loginMode, setLoginMode] = useState<"developer" | "manajemen">("developer");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -18,13 +20,13 @@ export default function Home() {
 
     try {
       const res = await signIn("credentials", {
-        email,
-        password,
+        email: loginMode === "developer" ? email : "mail@miliciptakarya.com",
+        password: loginMode === "developer" ? password : pin,
         redirect: false,
       });
 
       if (res?.error) {
-        setError("Email atau Passkey salah.");
+        setError(loginMode === "developer" ? "Email atau Passkey salah." : "PIN Akses salah.");
       } else {
         router.push("/dashboard/reports");
       }
@@ -59,6 +61,38 @@ export default function Home() {
         <div className="rounded-2xl border border-[#1E293B] bg-[#121824] p-8 shadow-xl">
           <h2 className="text-lg font-bold font-mono tracking-tight text-center mb-6">Autentikasi Internal</h2>
 
+          {/* Tabs Selector */}
+          <div className="flex p-1 rounded-xl bg-[#090D16] border border-[#1E293B] mb-6">
+            <button
+              type="button"
+              onClick={() => {
+                setLoginMode("developer");
+                setError("");
+              }}
+              className={`flex-1 py-2 text-xs font-mono font-bold rounded-lg transition-all cursor-pointer ${
+                loginMode === "developer"
+                  ? "bg-[#10B981] text-white shadow-sm"
+                  : "text-[#94A3B8] hover:text-white"
+              }`}
+            >
+              Developer
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setLoginMode("manajemen");
+                setError("");
+              }}
+              className={`flex-1 py-2 text-xs font-mono font-bold rounded-lg transition-all cursor-pointer ${
+                loginMode === "manajemen"
+                  ? "bg-[#10B981] text-white shadow-sm"
+                  : "text-[#94A3B8] hover:text-white"
+              }`}
+            >
+              Manajemen
+            </button>
+          </div>
+
           {error && (
             <div className="p-3 rounded-xl border border-red-500/20 bg-red-500/10 text-red-400 text-xs font-mono text-center mb-4">
               {error}
@@ -66,33 +100,57 @@ export default function Home() {
           )}
 
           <form onSubmit={handleCredentialsLogin} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-mono font-semibold uppercase tracking-wider text-[#94A3B8]">
-                Email Kantor
-              </label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="nama@domain.com"
-                className="w-full px-4 py-2.5 rounded-xl border border-[#1E293B] bg-[#090D16] focus:outline-none focus:border-[#10B981] transition-colors text-sm font-mono"
-              />
-            </div>
+            {loginMode === "developer" ? (
+              <>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-mono font-semibold uppercase tracking-wider text-[#94A3B8]">
+                    Email Kantor
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="nama@domain.com"
+                    className="w-full px-4 py-2.5 rounded-xl border border-[#1E293B] bg-[#090D16] focus:outline-none focus:border-[#10B981] transition-colors text-sm font-mono"
+                  />
+                </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-mono font-semibold uppercase tracking-wider text-[#94A3B8]">
-                Passkey / Password
-              </label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-4 py-2.5 rounded-xl border border-[#1E293B] bg-[#090D16] focus:outline-none focus:border-[#10B981] transition-colors text-sm"
-              />
-            </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-mono font-semibold uppercase tracking-wider text-[#94A3B8]">
+                    Passkey / Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-4 py-2.5 rounded-xl border border-[#1E293B] bg-[#090D16] focus:outline-none focus:border-[#10B981] transition-colors text-sm"
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-mono font-semibold uppercase tracking-wider text-[#94A3B8] text-center">
+                  PIN Akses Manajemen
+                </label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={8}
+                  required
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+                  placeholder="••••••••"
+                  className="w-full px-4 py-3 rounded-xl border border-[#1E293B] bg-[#090D16] focus:outline-none focus:border-[#10B981] transition-colors text-lg font-mono text-center tracking-[0.5em]"
+                />
+                <p className="text-[10px] font-mono text-[#94A3B8] text-center mt-1">
+                  Masukkan PIN 6-8 digit untuk masuk ke dashboard manajemen.
+                </p>
+              </div>
+            )}
 
             <button
               type="submit"
