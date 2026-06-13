@@ -31,7 +31,7 @@ export function ManagementDashboard({ managementData }: ManagementDashboardProps
   return (
     <div className="flex flex-col gap-6">
       {/* Bento Header Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Sprint Progress Card */}
         <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6 flex flex-col justify-between gap-4">
           <div>
@@ -48,19 +48,6 @@ export function ManagementDashboard({ managementData }: ManagementDashboardProps
             <div className="w-full bg-[var(--color-bg)] rounded-full h-2 overflow-hidden border border-[var(--color-border)]">
               <div className="bg-gradient-to-r from-emerald-400 to-teal-500 h-2 rounded-full transition-all duration-500" style={{ width: `${managementData?.stats?.progressPercent || 75}%` }} />
             </div>
-          </div>
-        </div>
-
-        {/* Completed Tasks Card */}
-        <div className="bento-card bg-[var(--color-card)] border border-[var(--color-border)] p-6 flex flex-col justify-between gap-2">
-          <div>
-            <span className="text-xs font-mono font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">Pekerjaan Terselesaikan</span>
-            <h3 className="text-3xl font-extrabold mt-2 text-[var(--color-accent-info)]">
-              {managementData?.stats?.completedTasks ?? 14}
-            </h3>
-          </div>
-          <div className="text-xs text-[var(--color-text-secondary)] font-mono leading-relaxed mt-2">
-            Pekerjaan diselesaikan pada repo yang dipantau (total PR merged & task ditutup).
           </div>
         </div>
 
