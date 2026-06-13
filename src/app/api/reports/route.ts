@@ -133,7 +133,7 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const typeParam = searchParams.get('type') as 'daily' | 'weekly' | 'monthly' || 'daily';
+  const typeParam = (searchParams.get('type') || 'daily') as 'daily' | 'weekly' | 'monthly';
 
   try {
     const role = session.user.role || "Developer";
@@ -158,13 +158,19 @@ export async function GET(request: Request) {
 
       if (reportsErr) throw reportsErr;
 
-      // Fetch all monitored repositories that are visible
+      // Fetch all monitored repositories that are visible (include encrypted_access_token for auto-sync)
       const { data: repos, error: reposErr } = await supabaseAdmin
         .from('monitored_repositories')
-        .select('*, github_accounts(user_id)')
+        .select('*, github_accounts(user_id, encrypted_access_token)')
         .eq('is_visible', true);
 
       if (reposErr) throw reposErr;
+
+      // Auto-sync repositories that haven't been updated in the last 5 minutes
+      if (repos && repos.length > 0) {
+        await Promise.all(repos.map(repo => autoSyncRepoIfNeeded(repo)));
+      }
+
       const repoIds = repos?.map(r => r.repo_id) || [];
 
       // Fetch commits and PRs in the date range

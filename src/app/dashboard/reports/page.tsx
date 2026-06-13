@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -41,10 +41,10 @@ export default function ReportsPage() {
   const [isExporting, setIsExporting] = useState<"none" | "pdf" | "excel" | "share">("none");
 
   // Load report data from backend
-  const fetchReportData = async () => {
+  const fetchReportData = useCallback(async (isBackground = false) => {
     if (!session?.user) return;
     try {
-      setLoading(true);
+      if (!isBackground) setLoading(true);
       const res = await fetch(`/api/reports?type=${reportType}`);
       const data = await res.json();
       if (data.success) {
@@ -66,13 +66,16 @@ export default function ReportsPage() {
     } catch (err) {
       console.error("Gagal memuat data laporan:", err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
-  };
+  }, [session, reportType]);
 
+  // Initial fetch + auto-refresh every 60s for realtime-like experience
   useEffect(() => {
     fetchReportData();
-  }, [session, reportType]);
+    const interval = setInterval(() => fetchReportData(true), 60_000);
+    return () => clearInterval(interval);
+  }, [fetchReportData]);
 
   const handleSaveReport = async (submit: boolean) => {
     setIsSaving(true);
