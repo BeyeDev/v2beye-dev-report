@@ -44,7 +44,7 @@ export async function GET() {
       if (repos.length > 0) {
         const repoIds = repos.map(r => r.repo_id);
         await Promise.all(repoIds.map(async (repoId) => {
-          const { count } = await supabaseAdmin
+          const { count } = await supabaseAdmin!
             .from('commits')
             .select('*', { count: 'exact', head: true })
             .eq('repo_id', repoId);
