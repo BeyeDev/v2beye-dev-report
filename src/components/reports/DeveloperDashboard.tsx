@@ -32,6 +32,28 @@ export function DeveloperDashboard({
   isExporting,
   handleExport,
 }: DeveloperDashboardProps) {
+  // Group commits by repository
+  const groupedCommits: Record<string, { repo: string; commits: CommitItem[]; latestDate: Date }> = {};
+  commits.forEach(commit => {
+    const repoName = commit.repo;
+    if (!groupedCommits[repoName]) {
+      groupedCommits[repoName] = {
+        repo: repoName,
+        commits: [],
+        latestDate: new Date(0)
+      };
+    }
+    groupedCommits[repoName].commits.push(commit);
+    const commitDate = commit.date ? new Date(commit.date) : new Date(0);
+    if (commitDate > groupedCommits[repoName].latestDate) {
+      groupedCommits[repoName].latestDate = commitDate;
+    }
+  });
+
+  const sortedGroups = Object.values(groupedCommits).sort(
+    (a, b) => b.latestDate.getTime() - a.latestDate.getTime()
+  );
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Left: Interactive Preview & Manual Input */}
@@ -120,17 +142,36 @@ export function DeveloperDashboard({
                 GitHub Commits ({commits.length})
               </h3>
               <div className="flex flex-col gap-3">
-                {commits.length > 0 ? (
-                  commits.map((commit, idx) => (
-                    <div key={idx} className="p-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] flex items-center justify-between gap-4">
-                      <div className="flex flex-col">
-                        <span className="text-xs font-mono font-bold text-[var(--color-accent-info)]">{commit.sha.substring(0, 8)}</span>
-                        <span className="text-xs font-semibold mt-1 leading-relaxed">{commit.msg}</span>
-                        <span className="text-[10px] text-[var(--color-text-secondary)] font-mono mt-0.5">{commit.repo}</span>
+                {sortedGroups.length > 0 ? (
+                  sortedGroups.map((group) => (
+                    <div key={group.repo} className="flex flex-col gap-3 p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] shadow-sm">
+                      <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-2">
+                        <h4 className="text-xs font-mono font-bold text-[var(--color-text-primary)] flex items-center gap-1.5">
+                          <span className="w-1.5 h-3 rounded bg-[var(--color-accent-info)]/80"></span>
+                          {group.repo}
+                        </h4>
+                        <span className="text-[10px] font-mono text-[var(--color-text-secondary)] bg-[var(--color-border)]/50 px-2 py-0.5 rounded-md">
+                          {group.commits.length} commit{group.commits.length > 1 ? 's' : ''}
+                        </span>
                       </div>
-                      <div className="flex gap-2 text-[10px] font-mono shrink-0">
-                        <span className="text-[var(--color-accent-success)] bg-emerald-500/10 px-2 py-0.5 rounded">+{commit.additions}</span>
-                        <span className="text-red-500 bg-red-500/10 px-2 py-0.5 rounded">-{commit.deletions}</span>
+                      <div className="flex flex-col gap-2.5">
+                        {group.commits.map((commit, idx) => (
+                          <div key={idx} className="flex items-center justify-between gap-4 pl-3 border-l-2 border-[var(--color-border)] hover:border-[var(--color-accent-info)] transition-colors">
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-mono font-bold text-[var(--color-accent-info)]">{commit.sha.substring(0, 8)}</span>
+                                <span className="text-[9px] text-[var(--color-text-secondary)] font-mono">
+                                  {commit.date ? new Date(commit.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}
+                                </span>
+                              </div>
+                              <span className="text-xs font-semibold mt-1 leading-relaxed text-[var(--color-text-primary)]">{commit.msg}</span>
+                            </div>
+                            <div className="flex gap-1.5 text-[9px] font-mono shrink-0">
+                              <span className="text-[var(--color-accent-success)] bg-emerald-500/10 px-1.5 py-0.5 rounded">+{commit.additions}</span>
+                              <span className="text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded">-{commit.deletions}</span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ))

@@ -50,7 +50,16 @@ export async function POST(request: Request) {
     }
 
     // Decrypt access token
-    const token = decrypt(githubAccount.encrypted_access_token);
+    let token = '';
+    try {
+      token = decrypt(githubAccount.encrypted_access_token);
+    } catch (decryptErr: any) {
+      console.error("Token decryption failed:", decryptErr);
+      return NextResponse.json({
+        success: false,
+        error: "Gagal mendekripsi token GitHub Anda. Kunci enkripsi (DATA_ENCRYPTION_KEY) di server telah berubah atau tidak cocok. Silakan hubungkan kembali akun GitHub Anda di halaman Akun."
+      }, { status: 400 });
+    }
     const repoName = repo.repo_name; // format: owner/name
 
     // 2. Fetch commits from GitHub with pagination (max 5 pages = 500 commits per sync to avoid rate limits)

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { EpicItem, TaskItem, DevReportItem } from "@/types/report";
 import { StarRating } from "./StarRating";
 
@@ -16,6 +17,11 @@ interface ManagementDashboardProps {
 }
 
 export function ManagementDashboard({ managementData }: ManagementDashboardProps) {
+  const [expandedReport, setExpandedReport] = useState<string | null>(null);
+  const [selectedEpicKey, setSelectedEpicKey] = useState<string | null>(null);
+
+  const activeEpic = managementData?.epics?.find(e => `${e.owner}/${e.name}` === selectedEpicKey);
+
   return (
     <div className="flex flex-col gap-6">
       {/* Bento Header Stats */}
@@ -84,36 +90,129 @@ export function ManagementDashboard({ managementData }: ManagementDashboardProps
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
               {managementData?.epics && managementData.epics.length > 0 ? (
-                managementData.epics.map((epic, idx) => (
-                  <div key={idx} className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] flex flex-col justify-between gap-4 hover:border-[var(--color-accent-info)]/30 transition-all cursor-pointer">
-                    <div>
-                      <div className="flex justify-between items-start gap-2">
-                        <h4 className="text-sm font-bold leading-tight">{epic.name}</h4>
-                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full shrink-0 ${epic.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'}`}>{epic.status}</span>
+                managementData.epics.map((epic, idx) => {
+                  const epicKey = `${epic.owner}/${epic.name}`;
+                  const isSelected = selectedEpicKey === epicKey;
+                  return (
+                    <div 
+                      key={idx} 
+                      onClick={() => setSelectedEpicKey(isSelected ? null : epicKey)}
+                      className={`p-4 rounded-xl border flex flex-col justify-between gap-4 transition-all cursor-pointer ${
+                        isSelected 
+                          ? 'border-[var(--color-accent-info)] bg-[var(--color-accent-info)]/5 shadow-md scale-[1.01]' 
+                          : 'border-[var(--color-border)] bg-[var(--color-bg)] hover:border-[var(--color-accent-info)]/30 hover:scale-[1.005]'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex justify-between items-start gap-2">
+                          <h4 className="text-sm font-bold leading-tight">{epic.name}</h4>
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full shrink-0 ${epic.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'}`}>{epic.status}</span>
+                        </div>
+                        <p className="text-[11px] text-[var(--color-text-secondary)] mt-1 leading-relaxed">Repositori {epic.owner}/{epic.name} ({epic.language})</p>
                       </div>
-                      <p className="text-[11px] text-[var(--color-text-secondary)] mt-1 leading-relaxed">Repositori {epic.owner}/{epic.name} ({epic.language})</p>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex justify-between items-center text-[10px] font-mono">
+                          <StarRating count={epic.difficulty} />
+                          <span className="font-bold text-[var(--color-text-secondary)]">{epic.progress}% Selesai</span>
+                        </div>
+                        <div className="w-full bg-[var(--color-card)] rounded-full h-1.5 overflow-hidden">
+                          <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${epic.progress}%` }} />
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] text-[var(--color-text-secondary)] font-mono mt-1">
+                          <div className="flex items-center gap-1">
+                            <span>Owner:</span>
+                            <span className="font-bold text-[var(--color-text-primary)]">{epic.owner}</span>
+                          </div>
+                          <span className="text-[10px] font-bold text-[var(--color-accent-info)] font-mono">
+                            {epic.commits?.length || 0} commits
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-2">
-                      <div className="flex justify-between items-center text-[10px] font-mono">
-                        <StarRating count={epic.difficulty} />
-                        <span className="font-bold text-[var(--color-text-secondary)]">{epic.progress}% Selesai</span>
-                      </div>
-                      <div className="w-full bg-[var(--color-card)] rounded-full h-1.5 overflow-hidden">
-                        <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${epic.progress}%` }} />
-                      </div>
-                      <div className="flex items-center gap-1 text-[10px] text-[var(--color-text-secondary)] font-mono mt-1">
-                        <span>Owner:</span>
-                        <span className="font-bold text-[var(--color-text-primary)]">{epic.owner}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="text-center col-span-2 py-8 text-[var(--color-text-secondary)] font-mono text-xs">
                   Belum ada repositori aktif yang terhubung.
                 </div>
               )}
             </div>
+
+            {/* Detailed Commits List Modal / Bottom Sheet */}
+            {activeEpic && (
+              <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                {/* Backdrop click to close */}
+                <div className="absolute inset-0 cursor-pointer" onClick={() => setSelectedEpicKey(null)} />
+                
+                {/* Modal content */}
+                <div className="relative w-full sm:max-w-2xl bg-[var(--color-bg)] border-t sm:border border-[var(--color-border)] rounded-t-3xl sm:rounded-2xl shadow-2xl p-6 flex flex-col gap-4 max-h-[85vh] sm:max-h-[80vh] overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-300">
+                  
+                  {/* Mobile handle indicator */}
+                  <div className="w-12 h-1 bg-[var(--color-border)] rounded-full mx-auto mb-1 shrink-0 sm:hidden" />
+                  
+                  {/* Header */}
+                  <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3 shrink-0">
+                    <h4 className="text-xs sm:text-sm font-mono font-bold text-[var(--color-text-primary)] flex items-center gap-1.5">
+                      <span className="w-1.5 h-3 rounded bg-[var(--color-accent-info)]/80"></span>
+                      {activeEpic.owner}/{activeEpic.name}
+                    </h4>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] font-mono text-[var(--color-text-secondary)] bg-[var(--color-border)]/50 px-2 py-0.5 rounded-md">
+                        {activeEpic.commits?.length || 0} commits
+                      </span>
+                      <button 
+                        onClick={() => setSelectedEpicKey(null)}
+                        className="text-xs text-[var(--color-text-secondary)] hover:text-red-500 transition-colors font-mono cursor-pointer flex items-center gap-1 focus:outline-none"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Tutup
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Commits List Body */}
+                  <div className="flex flex-col gap-3.5 overflow-y-auto pr-1">
+                    {activeEpic.commits && activeEpic.commits.length > 0 ? (
+                      activeEpic.commits.map((commit, cIdx) => (
+                        <div key={cIdx} className="flex items-start justify-between gap-4 pl-3 border-l-2 border-[var(--color-border)] hover:border-[var(--color-accent-info)] transition-colors py-0.5">
+                          <div className="flex flex-col min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-mono font-bold text-[var(--color-accent-info)] bg-[var(--color-accent-info)]/10 px-1.5 py-0.2 rounded">
+                                {commit.sha.substring(0, 8)}
+                              </span>
+                              <span className="text-[9px] text-[var(--color-text-secondary)] font-mono">
+                                {commit.date 
+                                  ? new Date(commit.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) + ' ' + new Date(commit.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+                                  : ''
+                                }
+                              </span>
+                              {commit.author && (
+                                <span className="text-[9px] text-[var(--color-accent-success)] bg-emerald-500/10 px-1.5 py-0.2 rounded-full font-mono font-semibold">
+                                  @{commit.author}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs font-semibold mt-1 leading-relaxed text-[var(--color-text-primary)]">
+                              {commit.msg}
+                            </span>
+                          </div>
+                          <div className="flex gap-1.5 text-[9px] font-mono shrink-0">
+                            <span className="text-[var(--color-accent-success)] bg-emerald-500/10 px-1.5 py-0.5 rounded">+{commit.additions}</span>
+                            <span className="text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded">-{commit.deletions}</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-12 text-[var(--color-text-secondary)] font-mono text-xs italic">
+                        Belum ada aktivitas commit untuk repositori ini dalam periode terpilih.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Developer Reports Feed */}
@@ -125,10 +224,10 @@ export function ManagementDashboard({ managementData }: ManagementDashboardProps
               Laporan Pengembang Terbaru (Developer Work Logs)
             </h2>
 
-            <div className="flex flex-col gap-4 max-h-[350px] overflow-y-auto pr-1">
+            <div className="flex flex-col gap-4 max-h-[500px] overflow-y-auto pr-1">
               {managementData?.reports && managementData.reports.length > 0 ? (
                 managementData.reports.map((rep, idx) => (
-                  <div key={idx} className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] flex flex-col gap-2">
+                  <div key={idx} className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] flex flex-col gap-2 shadow-sm">
                     <div className="flex justify-between items-center border-b border-[var(--color-border)] pb-2">
                       <div>
                         <span className="font-mono font-bold text-sm text-[var(--color-text-primary)]">{rep.developer}</span>
@@ -145,6 +244,71 @@ export function ManagementDashboard({ managementData }: ManagementDashboardProps
                     <div className="text-[11px] font-mono text-red-500 bg-red-500/5 p-2 rounded-lg border border-red-500/10 mt-1">
                       <span className="font-bold">Kendala/Blocker: </span>
                       {rep.blockers}
+                    </div>
+
+                    {/* Collapsible GitHub Activity for Manager */}
+                    <div className="mt-2 border-t border-[var(--color-border)] pt-2">
+                      <button
+                        onClick={() => setExpandedReport(expandedReport === rep.report_id ? null : rep.report_id)}
+                        className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-[var(--color-accent-info)] hover:opacity-80 transition-opacity cursor-pointer focus:outline-none"
+                      >
+                        <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${expandedReport === rep.report_id ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                        {expandedReport === rep.report_id ? "Sembunyikan Aktivitas GitHub" : `Lihat Aktivitas GitHub (${(rep.commits?.length || 0)} Commits, ${(rep.prs?.length || 0)} PR)`}
+                      </button>
+
+                      {expandedReport === rep.report_id && (
+                        <div className="mt-3 flex flex-col gap-3 pl-2.5 border-l-2 border-[var(--color-accent-info)]/45 animate-in fade-in duration-200">
+                          {/* Commits Section */}
+                          <div>
+                            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent-info)] block mb-2">Commits</span>
+                            {rep.commits && rep.commits.length > 0 ? (
+                              <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto pr-1">
+                                {rep.commits.map((commit, cIdx) => (
+                                  <div key={cIdx} className="text-[11px] font-mono bg-[var(--color-card)] border border-[var(--color-border)] p-2 rounded-lg flex items-center justify-between gap-4">
+                                    <div className="flex flex-col min-w-0">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="font-bold text-[var(--color-accent-info)] text-[10px]">{commit.sha.substring(0, 8)}</span>
+                                        <span className="text-[9px] text-[var(--color-text-secondary)] font-semibold">{commit.repo}</span>
+                                      </div>
+                                      <span className="text-[var(--color-text-primary)] font-medium mt-0.5 leading-relaxed truncate">{commit.msg}</span>
+                                    </div>
+                                    <div className="flex gap-1 text-[9px] font-mono shrink-0">
+                                      <span className="text-[var(--color-accent-success)]">+{commit.additions}</span>
+                                      <span className="text-red-500">-{commit.deletions}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-[10px] font-mono text-[var(--color-text-secondary)] italic">Tidak ada commit dalam periode ini.</span>
+                            )}
+                          </div>
+
+                          {/* PRs Section */}
+                          <div>
+                            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent-success)] block mb-2">Pull Requests</span>
+                            {rep.prs && rep.prs.length > 0 ? (
+                              <div className="flex flex-col gap-2 max-h-[150px] overflow-y-auto pr-1">
+                                {rep.prs.map((pr, pIdx) => (
+                                  <div key={pIdx} className="text-[11px] font-mono bg-[var(--color-card)] border border-[var(--color-border)] p-2 rounded-lg flex items-center justify-between gap-4">
+                                    <div className="flex flex-col min-w-0">
+                                      <span className="text-[9px] text-[var(--color-text-secondary)]">{pr.repo}</span>
+                                      <span className="text-[var(--color-text-primary)] font-medium mt-0.5 truncate">#{pr.number}: {pr.title}</span>
+                                    </div>
+                                    <span className={`text-[9px] px-2 py-0.5 rounded-full shrink-0 font-bold ${pr.state === 'merged' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-indigo-500/10 text-indigo-500'}`}>
+                                      {pr.state}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-[10px] font-mono text-[var(--color-text-secondary)] italic">Tidak ada pull request dalam periode ini.</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))

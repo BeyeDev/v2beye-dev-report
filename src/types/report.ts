@@ -4,6 +4,7 @@ export interface CommitItem {
   repo: string;
   additions: number;
   deletions: number;
+  date?: string;
 }
 
 export interface PRItem {
@@ -20,6 +21,7 @@ export interface EpicItem {
   progress: number;
   status: string;
   difficulty: number;
+  commits?: CommitItem[];
 }
 
 export interface TaskItem {
@@ -37,4 +39,6 @@ export interface DevReportItem {
   notes: string;
   blockers: string;
   submittedAt: string;
+  commits?: CommitItem[];
+  prs?: PRItem[];
 }

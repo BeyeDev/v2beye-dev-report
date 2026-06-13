@@ -94,13 +94,13 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { username, token } = await request.json();
-    if (!username || !token) {
-      return NextResponse.json({ success: false, error: "Username and token are required" }, { status: 400 });
+    const { token } = await request.json();
+    if (!token) {
+      return NextResponse.json({ success: false, error: "Token is required" }, { status: 400 });
     }
 
-    // 1. Validate against GitHub API
-    const ghUserResponse = await fetch(`https://api.github.com/users/${username}`, {
+    // 1. Validate against GitHub API (fetch authenticated user profile to get username & avatar)
+    const ghUserResponse = await fetch(`https://api.github.com/user`, {
       headers: {
         'Authorization': `token ${token}`,
         'User-Agent': 'MCK-DevReport-Sync'
@@ -108,10 +108,11 @@ export async function POST(request: Request) {
     });
 
     if (!ghUserResponse.ok) {
-      return NextResponse.json({ success: false, error: "Token GitHub tidak valid atau username salah." }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Token GitHub tidak valid." }, { status: 400 });
     }
 
     const ghUserData = await ghUserResponse.json();
+    const username = ghUserData.login;
     const avatarUrl = ghUserData.avatar_url;
 
     // 2. Fetch User from Supabase

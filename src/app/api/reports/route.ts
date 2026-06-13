@@ -1,8 +1,97 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { decrypt } from '@/lib/crypto';
 
 import { getOrCreateUser } from '@/lib/user';
+
+async function autoSyncRepoIfNeeded(repo: any) {
+  if (!supabaseAdmin) return;
+  const FIVE_MINUTES_MS = 5 * 60 * 1000;
+  const lastUpdated = repo.updated_at ? new Date(repo.updated_at).getTime() : 0;
+  const now = Date.now();
+
+  // If synced within the last 5 minutes, skip auto-sync to avoid hitting GitHub API limits
+  if (now - lastUpdated < FIVE_MINUTES_MS) {
+    return;
+  }
+
+  const githubAccount = repo.github_accounts;
+  if (!githubAccount || !githubAccount.encrypted_access_token) {
+    return;
+  }
+
+  try {
+    const token = decrypt(githubAccount.encrypted_access_token);
+    const repoName = repo.repo_name;
+
+    // 1. Fetch latest commits from GitHub
+    const commitsResponse = await fetch(`https://api.github.com/repos/${repoName}/commits?per_page=30`, {
+      headers: {
+        'Authorization': `token ${token}`,
+        'User-Agent': 'MCK-DevReport-Sync'
+      }
+    });
+
+    if (commitsResponse.ok) {
+      const commitsData = await commitsResponse.json();
+      if (Array.isArray(commitsData)) {
+        for (const c of commitsData) {
+          const authorName = c.author?.login || c.commit.author?.name || 'Unknown';
+          await supabaseAdmin
+            .from('commits')
+            .upsert([{
+              repo_id: repo.repo_id,
+              sha: c.sha,
+              message: c.commit.message.split('\n')[0],
+              author_username: authorName,
+              additions: c.stats?.additions || 0,
+              deletions: c.stats?.deletions || 0,
+              commit_date: c.commit.author.date,
+              branch_name: 'main'
+            }], { onConflict: 'sha' });
+        }
+      }
+    }
+
+    // 2. Fetch latest PRs from GitHub
+    const prsResponse = await fetch(`https://api.github.com/repos/${repoName}/pulls?state=all&per_page=15`, {
+      headers: {
+        'Authorization': `token ${token}`,
+        'User-Agent': 'MCK-DevReport-Sync'
+      }
+    });
+
+    if (prsResponse.ok) {
+      const prsData = await prsResponse.json();
+      if (Array.isArray(prsData)) {
+        for (const p of prsData) {
+          await supabaseAdmin
+            .from('pull_requests')
+            .upsert([{
+              repo_id: repo.repo_id,
+              number: p.number,
+              title: p.title,
+              state: p.state === 'closed' && p.merged_at ? 'merged' : p.state,
+              creator_username: p.user.login,
+              created_at: p.created_at,
+              merged_at: p.merged_at,
+              closed_at: p.closed_at
+            }], { onConflict: 'repo_id,number' });
+        }
+      }
+    }
+
+    // 3. Update repo's updated_at timestamp in database
+    await supabaseAdmin
+      .from('monitored_repositories')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('repo_id', repo.repo_id);
+
+  } catch (err) {
+    console.error(`Auto-sync failed for ${repo.repo_name}:`, err);
+  }
+}
 
 function getDateRange(type: 'daily' | 'weekly' | 'monthly') {
   const now = new Date();
@@ -84,11 +173,20 @@ export async function GET(request: Request) {
       let issuesList: any[] = [];
 
       if (repoIds.length > 0) {
+        let commitsStartIso = startIso;
+        let prsStartIso = startIso;
+        if (typeParam === 'daily') {
+          const d = new Date(startIso);
+          d.setDate(d.getDate() - 7);
+          commitsStartIso = d.toISOString();
+          prsStartIso = d.toISOString();
+        }
+
         const { data: commits, error: commitsErr } = await supabaseAdmin
           .from('commits')
           .select('*')
           .in('repo_id', repoIds)
-          .gte('commit_date', startIso)
+          .gte('commit_date', commitsStartIso)
           .lte('commit_date', endIso);
 
         if (commitsErr) throw commitsErr;
@@ -98,7 +196,7 @@ export async function GET(request: Request) {
           .from('pull_requests')
           .select('*')
           .in('repo_id', repoIds)
-          .gte('created_at', startIso)
+          .gte('created_at', prsStartIso)
           .lte('created_at', endIso);
 
         if (prsErr) throw prsErr;
@@ -158,9 +256,101 @@ export async function GET(request: Request) {
           language: repo.language || 'None',
           progress,
           status: progress === 100 ? 'Completed' : 'In Progress',
-          difficulty: repo.language === 'TypeScript' || repo.language === 'JavaScript' ? 4 : 3
+          difficulty: repo.language === 'TypeScript' || repo.language === 'JavaScript' ? 4 : 3,
+          commits: repoCommits.map(c => ({
+            sha: c.sha,
+            msg: c.message,
+            repo: repo.repo_name,
+            additions: c.additions,
+            deletions: c.deletions,
+            date: c.commit_date,
+            author: c.author_username
+          }))
         };
       });
+
+      const reportsList = await Promise.all(reports.map(async (r) => {
+        // Find developer's GitHub usernames and repo IDs
+        const { data: accounts } = await supabaseAdmin
+          .from('github_accounts')
+          .select('account_id, github_username')
+          .eq('user_id', r.user_id);
+
+        const accountIds = accounts?.map(a => a.account_id) || [];
+        const usernames = accounts?.map(a => a.github_username) || [];
+
+        let repoIds: string[] = [];
+        let repoMap: Record<string, string> = {};
+        if (accountIds.length > 0) {
+          const { data: repos } = await supabaseAdmin
+            .from('monitored_repositories')
+            .select('repo_id, repo_name')
+            .in('account_id', accountIds);
+
+          repoIds = repos?.map(r => r.repo_id) || [];
+          repos?.forEach(rp => {
+            repoMap[rp.repo_id] = rp.repo_name;
+          });
+        }
+
+        let commitsList: any[] = [];
+        let prsList: any[] = [];
+
+        if (repoIds.length > 0 && usernames.length > 0) {
+          let commitsStartIso = startIso;
+          let prsStartIso = startIso;
+          if (typeParam === 'daily') {
+            const d = new Date(startIso);
+            d.setDate(d.getDate() - 7);
+            commitsStartIso = d.toISOString();
+            prsStartIso = d.toISOString();
+          }
+
+          const { data: commits } = await supabaseAdmin
+            .from('commits')
+            .select('*')
+            .in('repo_id', repoIds)
+            .gte('commit_date', commitsStartIso)
+            .lte('commit_date', endIso)
+            .in('author_username', usernames)
+            .order('commit_date', { ascending: false });
+
+          commitsList = commits?.map(c => ({
+            sha: c.sha,
+            msg: c.message,
+            repo: repoMap[c.repo_id] || 'Unknown Repo',
+            additions: c.additions,
+            deletions: c.deletions,
+            date: c.commit_date
+          })) || [];
+
+          const { data: prs } = await supabaseAdmin
+            .from('pull_requests')
+            .select('*')
+            .in('repo_id', repoIds)
+            .gte('created_at', prsStartIso)
+            .lte('created_at', endIso)
+            .in('creator_username', usernames)
+            .order('created_at', { ascending: false });
+
+          prsList = prs?.map(p => ({
+            number: p.number,
+            title: p.title,
+            repo: repoMap[p.repo_id] || 'Unknown Repo',
+            state: p.state
+          })) || [];
+        }
+
+        return {
+          report_id: r.report_id,
+          developer: r.master_user?.nama || r.master_user?.email || 'Developer',
+          notes: r.manual_notes,
+          blockers: r.auto_summary?.blockers || 'Tidak ada kendala',
+          submittedAt: new Date(r.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+          commits: commitsList,
+          prs: prsList
+        };
+      }));
 
       return NextResponse.json({
         success: true,
@@ -173,13 +363,7 @@ export async function GET(request: Request) {
         },
         epics: epics.slice(0, 4),
         activeTasks: activeTasks.slice(0, 10),
-        reports: reports.map(r => ({
-          report_id: r.report_id,
-          developer: r.master_user?.nama || r.master_user?.email || 'Developer',
-          notes: r.manual_notes,
-          blockers: r.auto_summary?.blockers || 'Tidak ada kendala',
-          submittedAt: new Date(r.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-        }))
+        reports: reportsList
       });
 
     } else {
@@ -199,26 +383,42 @@ export async function GET(request: Request) {
       if (accountIds.length > 0) {
         const { data: repos, error: reposErr } = await supabaseAdmin
           .from('monitored_repositories')
-          .select('repo_id, repo_name')
-          .in('account_id', accountIds);
+          .select('*, github_accounts(*)')
+          .in('account_id', accountIds)
+          .eq('is_visible', true);
 
         if (reposErr) throw reposErr;
+
+        // Auto-sync repositories that haven't been updated in the last 5 minutes
+        if (repos && repos.length > 0) {
+          await Promise.all(repos.map(repo => autoSyncRepoIfNeeded(repo)));
+        }
+
         repoIds = repos?.map(r => r.repo_id) || [];
         repos?.forEach(r => {
           repoMap[r.repo_id] = r.repo_name;
         });
       }
 
-      // Fetch commits in the date range
+      // Fetch commits in the date range (with a 7-day lookback for daily reports)
       let commitsList: any[] = [];
       let prsList: any[] = [];
 
       if (repoIds.length > 0) {
+        let commitsStartIso = startIso;
+        let prsStartIso = startIso;
+        if (typeParam === 'daily') {
+          const d = new Date(startIso);
+          d.setDate(d.getDate() - 7);
+          commitsStartIso = d.toISOString();
+          prsStartIso = d.toISOString();
+        }
+
         const { data: commits, error: commitsErr } = await supabaseAdmin
           .from('commits')
           .select('*')
           .in('repo_id', repoIds)
-          .gte('commit_date', startIso)
+          .gte('commit_date', commitsStartIso)
           .lte('commit_date', endIso)
           .order('commit_date', { ascending: false });
 
@@ -228,14 +428,15 @@ export async function GET(request: Request) {
           msg: c.message,
           repo: repoMap[c.repo_id] || 'Unknown Repo',
           additions: c.additions,
-          deletions: c.deletions
+          deletions: c.deletions,
+          date: c.commit_date
         })) || [];
 
         const { data: prs, error: prsErr } = await supabaseAdmin
           .from('pull_requests')
           .select('*')
           .in('repo_id', repoIds)
-          .gte('created_at', startIso)
+          .gte('created_at', prsStartIso)
           .lte('created_at', endIso)
           .order('created_at', { ascending: false });
 
@@ -321,7 +522,8 @@ export async function POST(request: Request) {
       const { data: repos } = await supabaseAdmin
         .from('monitored_repositories')
         .select('repo_id')
-        .in('account_id', accountIds);
+        .in('account_id', accountIds)
+        .eq('is_visible', true);
       repoIds = repos?.map(r => r.repo_id) || [];
     }
 
@@ -329,19 +531,28 @@ export async function POST(request: Request) {
     let prsCount = 0;
     if (repoIds.length > 0) {
       const { startDate: startD, endDate: endD, startIso, endIso } = getDateRange(type);
+      
+      let commitsStartIso = startIso;
+      let prsStartIso = startIso;
+      if (type === 'daily') {
+        const d = new Date(startIso);
+        d.setDate(d.getDate() - 7);
+        commitsStartIso = d.toISOString();
+        prsStartIso = d.toISOString();
+      }
 
       const { count: commitsCountResult } = await supabaseAdmin
         .from('commits')
         .select('*', { count: 'exact', head: true })
         .in('repo_id', repoIds)
-        .gte('commit_date', startIso)
+        .gte('commit_date', commitsStartIso)
         .lte('commit_date', endIso);
 
       const { count: prsCountResult } = await supabaseAdmin
         .from('pull_requests')
         .select('*', { count: 'exact', head: true })
         .in('repo_id', repoIds)
-        .gte('created_at', startIso)
+        .gte('created_at', prsStartIso)
         .lte('created_at', endIso);
 
       commitsCount = commitsCountResult || 0;
